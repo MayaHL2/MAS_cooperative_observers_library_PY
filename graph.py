@@ -12,3 +12,6 @@ def Degree_matrix(Adj):
 
 def Laplacien_matrix(A, D):
     return D - A
+
+# def iscomplete(A):
+    
