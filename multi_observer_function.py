@@ -4,13 +4,12 @@ import control as co
 def initialize_random(size_agent, nbr_agent, nbr_step, range_initial_x, range_initial_x_hat, type_A = "standard"):
     x = range_initial_x*np.random.rand(size_agent*nbr_agent, nbr_step)
     x_hat = range_initial_x_hat*np.random.rand(nbr_agent, size_agent*nbr_agent, nbr_step)
-    x_concatenated = x_hat_concatenated = np.reshape(x_hat, (nbr_agent*size_agent*nbr_agent, nbr_step))
-
+    x_hat_concatenated = np.reshape(x_hat, (nbr_agent*size_agent*nbr_agent, nbr_step))
  
     if type_A == "standard":
         A = np.zeros((size_agent,size_agent))
         A[0:size_agent-1,1:] = np.eye(size_agent-1)
-        A[size_agent-1:size_agent,0:] = -np.abs(np.random.rand(1, size_agent))
+        A[size_agent-1:size_agent,0:] = -5*np.abs(np.random.rand(1, size_agent))
     elif type_A == "diag":
         A = -10*np.abs(np.diag(np.random.rand(size_agent, ))) # Stable matrix in
 
@@ -24,7 +23,13 @@ def initialize_random(size_agent, nbr_agent, nbr_step, range_initial_x, range_in
     y_hat = np.zeros((nbr_agent, nbr_agent*np.shape(C)[0], nbr_step))
     y_concatenated = np.zeros((nbr_agent*nbr_agent*np.shape(C)[0], nbr_step))
 
-    return x, x_hat, x_hat_concatenated, x_concatenated, A, B, C, y, y_hat, y_concatenated
+    return x, x_hat, x_hat_concatenated, A, B, C, y, y_hat, y_concatenated
+
+def noisy_parameters(A, std_noise = 0.5):
+    A_noisy = np.array(A)
+    A_noisy[-1] = np.random.normal(np.mean(A[-1]), std_noise, np.shape(A[-1]))
+    return A_noisy
+
 
 def define_multi_agent_system(size_agent, nbr_agent, L, A, B, C, K):   
     L_mn = np.kron(np.eye(nbr_agent), np.kron(L, np.eye(size_agent)))
@@ -33,7 +38,6 @@ def define_multi_agent_system(size_agent, nbr_agent, L, A, B, C, K):
     C_sys = np.kron(np.eye(nbr_agent), C)
     K_sys = np.kron(np.eye(nbr_agent), K)
 
-    
     # print("eig A_sys", np.linalg.eigvals(A))
     # print("eig A_sys - B_sys*K_sys", np.linalg.eigvals(A_sys - np.dot(B_sys, K_sys)))
     # print(K)
@@ -57,5 +61,4 @@ def input(nbr_step, nbr_agent, shape_u, type = "unit"):
     return u, u_sys, u_concatenated
 
 def is_observable(A, C, size_agent):
-    observability = np.linalg.matrix_rank(co.obsv(A, C)) == size_agent
-    return observability
+    return np.linalg.matrix_rank(co.obsv(A, C)) == size_agent
