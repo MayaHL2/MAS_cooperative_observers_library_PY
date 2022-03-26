@@ -1,9 +1,34 @@
-import numpy as np
-import control as co
+from control import place, obsv
 from itertools import combinations
+from scipy.linalg import solve_continuous_are
+from helper_function import *
 
 def obsevability(A, C, n):
-    return co.obsv(A, C), np.linalg.matrix_rank(co.obsv(A, C)), np.linalg.matrix_rank(co.obsv(A, C)) == n
+    return obsv(A, C), np.linalg.matrix_rank(obsv(A, C)), np.linalg.matrix_rank(obsv(A, C)) == n
+
+def Mi(Ti, ki, Mid, size_unobservable):
+    Mi = np.zeros((np.shape(Mid)[0] + size_unobservable, np.shape(Mid)[0] + size_unobservable))
+    Mi[0:np.shape(Mid)[0],0:np.shape(Mid)[0]] = ki*Mid
+    Mi[np.shape(Mid)[0]:,np.shape(Mid)[0]:] = np.eye(size_unobservable) 
+    return np.dot(np.dot(Ti, Mi), np.transpose(Ti))
+    
+def Li(Ti, Lid, size_unobservable):
+    Li = np.zeros((np.shape(Lid)[0] + size_unobservable, ))
+    Li[0:np.shape(Lid)[0]] = Lid
+    return np.dot(Ti, Li)
+
+def Lid(Aid, Hid):
+    eig = -1.5*np.abs(np.random.rand(np.shape(Aid)[0])+0.75)
+    return place(Aid.T, Hid.T, eig)
+
+def separate_A_bar(A_bar, size_obsv_space):
+    # Aid, Air, Aiu
+    return A_bar[:size_obsv_space, :size_obsv_space], A_bar[size_obsv_space+1:, :size_obsv_space], A_bar[size_obsv_space+1:, size_obsv_space+1:]
+
+def Mid(Aid, Lid, Hid):
+    n = np.shape(Aid)[0]
+    A = Aid - np.dot(Lid, Hid)
+    return solve_continuous_are(A, np.zeros((np.shape(A)[0], 1)), -np.eye(n), 1)
 
 def new_basis(A, B, C, T):
     A_bar = np.dot(np.dot(np.linalg.inv(T), A), T)
@@ -51,26 +76,3 @@ def transformation_matrix(O, size_obs_space, n):
 
     T = (T.T*norm).T
     return T
-
-
-A = np.array([[0, 1, 0, 0], [-1, 0 , 0, 0], [0, 0, 0, 2], [0, 0, -2, 0]])
-C = np.eye(4)[1]
-B = np.transpose(C)
-
-n = np.shape(A)[0]
-
-O, size_obs_space, is_obsv = obsevability(A, C, n) 
-T = transformation_matrix(O, size_obs_space, n)
-print(T)
-print("")
-A_bar, B_bar, C_bar = new_basis(A, B, C, T)
-
-print(size_obs_space)
-
-print(A)
-print(A_bar)
-
-print("")
-
-print(C)
-print(C_bar)

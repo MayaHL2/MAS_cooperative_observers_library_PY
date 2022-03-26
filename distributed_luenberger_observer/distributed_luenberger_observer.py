@@ -1,33 +1,7 @@
 import matplotlib.pyplot as plt
 from graph import *
 from control import place
-
-def Mi(Ti, ki, Mid, size_unobservable):
-    Mi = np.zeros((np.shape(Mid)[0] + size_unobservable, np.shape(Mid)[0] + size_unobservable))
-    Mi[0:np.shape(Mid)[0],0:np.shape(Mid)[0]] = ki*Mid
-    Mi[np.shape(Mid)[0]:,np.shape(Mid)[0]:] = np.eye(size_unobservable) 
-    return np.dot(np.dot(Ti, Mi), np.transpose(Ti))
-    
-def Li(Ti, Lid, size_unobservable):
-    Li = np.zeros((np.shape(Lid)[0] + size_unobservable, ))
-    Li[0:np.shape(Lid)[0]] = Lid
-    return np.dot(Ti, Li)
-
-def sum_two_tuples(tuple1, tuple2):
-    return (tuple1[0]+tuple2[0], tuple1[1]+ tuple2[1])
-
-def diag(tuple_matrix): # Only works on two dimentional matrices
-    shape_diag = (0,0)
-    for matrix in tuple_matrix:
-        shape_diag = sum_two_tuples(shape_diag, np.shape(matrix))
-    matrix_diag = np.zeros(shape_diag)
-
-    last_shape_matrix = (0,0)
-    for matrix in tuple_matrix:
-        matrix_diag[last_shape_matrix[0]:np.shape(matrix)[0] + last_shape_matrix[0], last_shape_matrix[1]:np.shape(matrix)[1]+last_shape_matrix[1]] = matrix
-        last_shape_matrix = sum_two_tuples(np.shape(matrix), last_shape_matrix)
-    return matrix_diag
-
+from parameters_function import *
 
 nbr_agent = 4
 
