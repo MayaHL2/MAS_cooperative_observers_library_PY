@@ -17,11 +17,11 @@ def Laplacien_matrix(A, D):
 
 def Incidence_matrix(Adj, type_graph = "directed"):
     nbr_agent = np.shape(Adj)[0]
-    c = np.column_stack((np.array(np.where(Adj != 0)[0]), np.array(np.where(Adj != 0)[1]))) 
-    B = np.zeros((nbr_agent, np.shape(c)[0]))
+    edges = np.column_stack((np.array(np.where(Adj != 0)[0]), np.array(np.where(Adj != 0)[1]))) 
+    B = np.zeros((nbr_agent, np.shape(edges)[0]))
 
     i = 0
-    for edge in c:
+    for edge in edges:
         if type_graph == "directed":
             B[edge[0]][i] = -1
         else: 
@@ -29,5 +29,12 @@ def Incidence_matrix(Adj, type_graph = "directed"):
         B[edge[1]][i] = 1
         i +=1
 
-    return B
-    
+    return B, edges
+
+
+def Incidence_column_from_edge(B, edges, edge):
+    i = 0
+    for e in edges:
+        if np.all(e == edge): 
+            return np.array(B[:,i])
+        i += 1

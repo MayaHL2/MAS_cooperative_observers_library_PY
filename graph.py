@@ -15,16 +15,22 @@ def Degree_matrix(Adj, T = 0, type = "no pondération"):
 def Laplacien_matrix(A, D):
     return D - A
 
-def Incidence_matrix(Adj):
+def Incidence_matrix(Adj, type_graph = "directed"):
     nbr_agent = np.shape(Adj)[0]
     c = np.column_stack((np.array(np.where(Adj != 0)[0]), np.array(np.where(Adj != 0)[1]))) 
     B = np.zeros((nbr_agent, np.shape(c)[0]))
 
     i = 0
     for edge in c:
+        if type_graph == "directed":
+            B[edge[0]][i] = -1
+        else: 
+            B[edge[0]][i] = 1
         B[edge[1]][i] = 1
-        B[edge[0]][i] = -1
         i +=1
 
     return B
     
+
+def Incidence_column_from_edge(B, edges, edge):
+    print(edges == edge)

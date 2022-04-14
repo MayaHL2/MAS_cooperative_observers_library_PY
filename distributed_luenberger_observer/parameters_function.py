@@ -15,31 +15,32 @@ def Mi(Ti, ki, Mid, size_unobservable):
 def Li(Ti, Lid, size_unobservable):
     Li = np.zeros((np.shape(Lid)[0] + size_unobservable, ))
     Li[0:np.shape(Lid)[0]] = Lid
-    return np.dot(Ti, Li)
+    return np.reshape(np.dot(Ti, Li), (-1, 1))
 
 def Lid(Aid, Hid):
     eig = -1.5*np.abs(np.random.rand(np.shape(Aid)[0])+0.75)
-    return place(Aid.T, Hid.T, eig)
+    return place(Aid.T,  np.reshape(Hid, (1,-1)).T, eig)
+
+def Hid(Hi, size_obsv_space):
+    return Hi[:,:size_obsv_space]
 
 def separate_A_bar(A_bar, size_obsv_space):
-    # Aid, Air, Aiu
     return A_bar[:size_obsv_space, :size_obsv_space], A_bar[size_obsv_space+1:, :size_obsv_space], A_bar[size_obsv_space+1:, size_obsv_space+1:]
 
 def Mid(Aid, Lid, Hid):
     n = np.shape(Aid)[0]
-    A = Aid - np.dot(Lid, Hid)
-    return solve_continuous_are(A, np.zeros((np.shape(A)[0], 1)), -np.eye(n), 1)
+    A = Aid - np.dot(Lid.T, Hid)
+    return solve_continuous_are(A, np.zeros((np.shape(A)[0], 1)), np.eye(n), 1)
 
 def new_basis(A, B, C, T):
-    A_bar = np.dot(np.dot(np.linalg.inv(T), A), T)
-    B_bar = np.dot(np.linalg.inv(T), B)
+    A_bar = np.dot(np.dot(T.T, A), T)
+    B_bar = np.dot(T.T, B)
     C_bar = np.dot(C, T)
     return A_bar, B_bar, C_bar
 
 def transformation_matrix(O, size_obs_space, n):
     
     T = np.zeros((n,n))
-
     norm_vector = np.linalg.norm(O, axis = 0) + 10**(-10)
     O_norm = O/norm_vector
 
