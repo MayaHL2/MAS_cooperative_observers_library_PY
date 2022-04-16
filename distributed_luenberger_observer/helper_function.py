@@ -14,3 +14,6 @@ def diag(tuple_matrix): # Only works on two dimentional matrices
         matrix_diag[last_shape_matrix[0]:np.shape(matrix)[0] + last_shape_matrix[0], last_shape_matrix[1]:np.shape(matrix)[1]+last_shape_matrix[1]] = matrix
         last_shape_matrix = sum_two_tuples(np.shape(matrix), last_shape_matrix)
     return matrix_diag
+
+def p_norm(vector, p):
+    return (np.sum(np.abs(vector)**p))**(1/p)
