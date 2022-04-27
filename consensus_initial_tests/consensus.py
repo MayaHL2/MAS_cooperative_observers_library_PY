@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from graph import *
 
-nbr_agent = 10
+nbr_agent = 4
 size_agent = 10
 
 step = 0.01
@@ -12,6 +12,7 @@ nbr_step = int(t_max/step)
 Adj = random_Adjacency(nbr_agent)
 D = Degree_matrix(Adj)
 L = Laplacien_matrix(Adj, D)
+print(L)
 
 x = 5*np.random.rand(size_agent*nbr_agent, nbr_step)
 

@@ -3,7 +3,7 @@ import control as co
 from itertools import combinations
 from scipy.linalg import solve_continuous_are
 
-def obsevability(A, C, n):
+def observability(A, C, n):
     return co.obsv(A, C), np.linalg.matrix_rank(co.obsv(A, C)), np.linalg.matrix_rank(co.obsv(A, C)) == n
 
 def new_basis(A, B, C, T):
@@ -70,7 +70,7 @@ for i in range(4):
 
     n = np.shape(A)[0]
 
-    O, size_obs_space, is_obsv = obsevability(A, C, n) 
+    O, size_obs_space, is_obsv = observability(A, C, n) 
     T = transformation_matrix(O, size_obs_space, n)
     print(T)
     print("")
