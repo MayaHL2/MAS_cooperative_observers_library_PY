@@ -1,9 +1,8 @@
-from matplotlib.font_manager import json_load
-from parameters_function import *
+from .parameters_function import *
+from .system import *
 from harold import staircase
 import matplotlib.pyplot as plt
 from control import obsv
-from system import *
 
 class ObserverDesign:
     step = 0.01
@@ -118,6 +117,9 @@ class ObserverDesign:
             x_concatenated = np.reshape(x_concatenated, (np.shape(x_concatenated)[0]*np.shape(x_concatenated)[1], ))
             self.y_concatenated[:, i+1] = np.dot(self.C_sys_concatenated, x_concatenated)
 
+            if np.allclose(self.y_concatenated[:, i] - self.y_hat_concatenated[:,i], 0, atol= 10**(-3)) and first and i != 0:
+                print(i*self.step)
+                first = False
 
             if type_observer == "output error":
                 diff_output = self.y_concatenated[:, i] - self.y_hat_concatenated[:,i]

@@ -1,6 +1,6 @@
 from control import place
 from scipy.linalg import solve_continuous_are
-from helper_function import *
+from .helper_function import *
 
 def Mi(Ti, ki, Mid, size_unobservable):
     Mi = np.zeros((np.shape(Mid)[0] + size_unobservable, np.shape(Mid)[0] + size_unobservable))

@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
-from graph import *
+import numpy as np
+from .classes.graph import *
+from .classes.parameters_function import *
 from control import place
-from parameters_function import *
 
 nbr_agent = 4
 
@@ -10,8 +11,7 @@ t_max = 20
 nbr_step = int(t_max/step)
 
 Adj = [[0, 1, 0, 1], [1, 0, 1, 0], [0, 1, 0, 1], [1, 0, 1, 0]]
-Degree = Degree_matrix(Adj)
-Laplacien = Laplacien_matrix(Adj, Degree)
+Laplacien = -1*np.array([[-2, 1, 0, 1], [1, -2, 1, 0], [0, 1, -2, 1], [1, 0, 1, -2]])
 
 A_sys = np.array([[0, 1, 0, 0], [-1, 0 , 0, 0], [0, 0, 0, 2], [0, 0, -2, 0]])
 C_sys = np.eye(4)

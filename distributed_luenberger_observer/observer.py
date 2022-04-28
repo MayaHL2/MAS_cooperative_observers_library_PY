@@ -1,4 +1,4 @@
-from parameters_function import *
+from classes.parameters_function import *
 from harold import staircase
 import matplotlib.pyplot as plt
 from control import obsv

@@ -1,10 +1,10 @@
-from system import *
-from graph import *
-from luenberger_observer import *
+from classes.system import *
+from classes.graph import *
+from classes.luenberger_observer import *
 
 np.random.seed(3)
 
-G = Graph(3, [[ 0, 1,  1],[1,  0, 1 ], [ 1,   1, 0]])
+G = Graph(3, [[ 0, 1,  1], [1,  0, 1 ], [ 1,   1, 0]])
 
 A_sys = -6*np.diag(np.random.rand(4))
 print(np.linalg.norm(A_sys))

@@ -1,5 +1,5 @@
 import numpy as np
-from helper_function import *
+from .helper_function import *
 from control import obsv, place
 import matplotlib.pyplot as plt
  

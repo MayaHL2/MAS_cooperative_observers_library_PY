@@ -1,6 +1,6 @@
-from graph import *
+from classes.graph import *
 from control import place
-from parameters_function import *
+from classes.parameters_function import *
 from observer import *
 
 np.random.seed(1)

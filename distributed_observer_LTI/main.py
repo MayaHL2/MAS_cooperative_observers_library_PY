@@ -1,6 +1,5 @@
-from cv2 import transpose
-from graph import *
-from helper_function import *
+from func.graph import *
+from func.helper_function import *
 from control import place
 
 
@@ -38,4 +37,3 @@ for i in range(nbr_agent):
             if cij is not None:
                 C_ij[str(i) + str(j)] = np.kron(cij, np.eye(np.shape(A_sys)[0]))
 
-print(np.shape(A_tilde), np.shape())
