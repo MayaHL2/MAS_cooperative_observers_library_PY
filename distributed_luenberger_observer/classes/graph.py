@@ -1,7 +1,19 @@
 import numpy as np
 
 class Graph:
+    """ This class defines a graph.
+    """
     def __init__(self, nbr_agent, Adj = None, type_graph = "directed"):
+        """ 
+        Arguments:
+            nbr_agent: the number of agents connected through the 
+            graph.
+            Adj: the adjacency matrix of the graph. If None, it is
+            defined randomly.
+            type_graph: directed or undirected.
+        Returns:
+            None
+        """
 
         self.nbr_agent = nbr_agent
 
@@ -17,10 +29,24 @@ class Graph:
         self.Incidence_matrix()
 
     def random_Adjacency(self):
+        """ This function creates a random adjacency matrix with
+        nbr_agent lines and columns.
+        Arguments:
+            None
+        Returns:
+            None
+        """
         self.Adj = np.random.rand(self.nbr_agent, self.nbr_agent)
         self.Adj = np.abs(np.diag(self.Adj)*np.eye(self.nbr_agent) - self.Adj)
 
     def Degree_matrix(self, T = None):
+        """ This function defines the degree matrix of the graph
+        Arguments:
+            T: the weighting array for the degree matrix. if None, 
+            T = [1, 1, ..., 1]
+        Returns:
+            None
+        """
         if T == None:
             T = np.ones((np.shape(self.Adj)[0], 1))
         D = np.dot(self.Adj, T)
@@ -28,6 +54,12 @@ class Graph:
         self.Deg = np.diag(D)
 
     def Incidence_matrix(self):
+        """ This function defines the incidence matrix of the graph
+        Arguments:
+            None
+        Returns:
+            None
+        """
         nbr_agent = np.shape(self.Adj)[0]
         c = np.column_stack((np.array(np.where(self.Adj != 0)[0]), np.array(np.where(self.Adj != 0)[1]))) 
         B = np.zeros((nbr_agent, np.shape(c)[0]))
@@ -43,15 +75,4 @@ class Graph:
 
         self.Incid = B
 
-    def access_Adjacency(self):
-        return self.Adj
-    
-    def access_Degree(self):
-        return self.Deg
-
-    def access_Incidence(self):
-        return self.Incid
-
-    def access_Laplacien(self):
-        return self.Lap
     

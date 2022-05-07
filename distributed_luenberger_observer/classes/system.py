@@ -4,29 +4,67 @@ from control import obsv, place
 import matplotlib.pyplot as plt
  
 class MultiAgentSystem:
-    step = 0.01
-    e = 10**(-6)
-    def __init__(self, nbr_agent, A_plant, B_plant, tuple_output_matrix, graph):
+    """ This class defines a multi agent system and helps 
+    in reading its proprieties, controlling the system, 
+    and testing it with different type of inputs
+    """
+    step = 0.01  # The precision of time
+
+    def __init__(self, A_plant, B_plant, tuple_output_matrix, graph):
+        """ 
+        Arguments:
+            A_plant: the state space matrix of the entire plant.
+            B_plant: the input matrix of the entire plant.
+            tuple_output_matrix: a tuple or a dictionnary containing 
+            the output matrices of each agent.
+        Returns:
+            None
+        """
         self.size_plant = np.shape(A_plant)[0]
-        self.nbr_agent = nbr_agent
         self.A_plant = A_plant.astype(np.float64)
         self.B_plant = B_plant
         self.tuple_output_matrix = tuple_output_matrix
         self.A_plant_noisy = np.array(self.A_plant)
         self.A_plant_stabilized = np.array(self.A_plant)
-        self.form = "normal"
+        self.form = "normal" # The form in which the matrix was written
         self.graph = graph
+        self.nbr_agent = self.graph.nbr_agent
 
     def is_jointly_obsv(self):
+        """ This function tests if the system is jointly observable
+        Arguments:
+            None
+        Returns:
+            True if the system is jointly observable, otherwize False
+        """
         return np.linalg.matrix_rank(obsv(self.A_plant, np.row_stack(self.tuple_output_matrix))) == self.size_plant
 
     def obsv_index(self):
+        """ This function tests if the observability of each agent with respect
+        to the plant
+        Arguments:
+            None
+        Returns:
+            indew_array: a list of the observability index of each agent with 
+            respect to the plant order following the argument self.tuple_output_matrix
+        """
         index_array = np.zeros((self.nbr_agent,))
         for i in range(self.nbr_agent):
             index_array[i] = np.linalg.matrix_rank(obsv(self.A_plant, self.tuple_output_matrix[i]))
         return index_array
 
     def step_response(self, t_max, x0 = None, noisy = False, stabilized = False):
+        """ This function simulates the step response of the system
+        Arguments:
+            t_max: the duration of the response.
+            x0: the initial values of the states.
+            noisy: if True, the test is performed with the noisy 
+            matrix' plant.
+            stabilized: the step response of the system after 
+            stabilization.
+        Returns:
+            None
+        """
 
         if noisy:
             A = self.A_plant_noisy
@@ -60,6 +98,17 @@ class MultiAgentSystem:
 
             
     def impulse_response(self, t_max, x0 = None, noisy = False, stabilized = False):
+        """ This function simulates the impulse response of the system
+        Arguments:
+            t_max: the duration of the response.
+            x0: the initial values of the states.
+            noisy: if True, the test is performed with the noisy 
+            matrix' plant.
+            stabilized: the impulse response of the system after 
+            stabilization.
+        Returns:
+            None
+        """
 
         if noisy:
             A = self.A_plant_noisy
@@ -95,7 +144,23 @@ class MultiAgentSystem:
 
         return t, x
 
-    def forced_response(self, t_max, step, u, x0 = None, noisy = False, stabilized = False):
+    def forced_response(self, t_max, u, x0 = None, noisy = False, stabilized = False):
+        """ This function simulates the response of the system to
+        a given input.
+        Arguments:
+            t_max: the duration of the response.
+            u: an array containing the input of the system at each
+            step.
+            x0: the initial values of the states.
+            noisy: if True, the test is performed with the noisy 
+            matrix' plant.
+            stabilized: the step response of the system after 
+            stabilization.
+        Returns:
+            None
+        """
+
+        step = t_max/np.shape(u)[1]
 
         if noisy:
             A = self.A_plant_noisy
@@ -130,8 +195,18 @@ class MultiAgentSystem:
         return t, x  
 
     def feedback_control(self, desired_eig = None, feedback_gain = None, noisy = False):
-        # if noisy:
-        #     self.add_noise()
+        """ This function adds a feedback control to the system
+        either by choosing the feedback gain or the desired 
+        eigen values of the closed loop.
+        Arguments:
+            desired_eig: the desired eigen values of the closed
+            loop.
+            feedback_gain: chosen feedback gain.
+            noisy: if True, realises feedback control with the 
+            noisy plant.
+        Returns:
+            None
+        """
 
         if not(desired_eig == None):
             if not(noisy):
@@ -149,6 +224,14 @@ class MultiAgentSystem:
             
 
     def add_noise(self, std_noise):
+        """ This function add noise to the plant according to
+        std_noise
+        Arguments:
+            std_noise: the standard deviation of the noise 
+            added to the plant.
+        Returns:
+            None
+        """
         if self.form == "standard":
             self.A_plant_noisy = np.array(self.A_plant)
             self.A_plant_noisy[-1] = np.random.normal(np.mean(self.A_plant[-1]), std_noise, np.shape(self.A_plant[-1]))
@@ -162,8 +245,11 @@ class MultiAgentSystem:
 
 
 class RandomStandardSystem(MultiAgentSystem):
-    
-    def __init__(self, nbr_agent, size_plant, random_range, B_plant, tuple_output_matrix, graph):
+    """ This class inherits from the multi agent system
+    class, it creates a random multi agent system in a 
+    standard form.
+    """
+    def __init__(self, size_plant, random_range, B_plant, tuple_output_matrix, graph):
 
         self.size_plant = size_plant
 
@@ -172,7 +258,7 @@ class RandomStandardSystem(MultiAgentSystem):
         self.A_plant[size_plant-1:size_plant,0:] = -random_range*np.abs(np.random.rand(1, size_plant))
         self.A_plant = self.A_plant.astype(np.float64)
 
-        self.nbr_agent = nbr_agent
+    
         self.B_plant = B_plant
         self.tuple_output_matrix = tuple_output_matrix
         self.A_plant_noisy = np.array(self.A_plant)
@@ -181,17 +267,20 @@ class RandomStandardSystem(MultiAgentSystem):
         self.form = "standard" 
 
         self.graph = graph
-
+        self.nbr_agent = self.graph.nbr_agent
 
 class MultiAgentGroups(MultiAgentSystem):
-    
-    def __init__(self, nbr_agent, tuple_system_matrix, tuple_input_matrix, tuple_output_matrix, graph):
+    """ This class inherits from the multi agent system
+    class, it creates a multi agent system from a group
+    of systems.
+    """
+    def __init__(self, tuple_system_matrix, tuple_input_matrix, tuple_output_matrix, graph):
 
         self.tuple_system_matrix = tuple_system_matrix
         self.tuple_input_matrix = tuple_input_matrix
         self.A_plant = diag(tuple_system_matrix)
         self.size_plant = np.shape(self.A_plant)[0]
-        self.nbr_agent = nbr_agent
+        self.nbr_agent = self.graph.nbr_agent
         self.B_plant = diag(tuple_input_matrix)
         self.tuple_output_matrix = tuple_output_matrix
         self.A_plant_noisy = np.array(self.A_plant)

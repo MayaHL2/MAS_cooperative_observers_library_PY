@@ -13,8 +13,9 @@ def Li(Ti, Lid, size_unobservable):
     Li[0:np.shape(Lid)[0]] = Lid
     return np.reshape(np.dot(Ti, Li), (-1, 1))
 
-def Lid(Aid, Hid):
-    eig = -1.5*np.abs(np.random.rand(np.shape(Aid)[0])+0.75)
+def Lid(Aid, Hid, minEig = 2, maxEig = 4):
+    eig = -np.random.uniform(minEig, maxEig, np.shape(Aid)[0])
+    print("eig observer", eig)
     return place(Aid.T,  np.reshape(Hid, (1,-1)).T, eig)
 
 def Hid(Hi, size_obsv_space):
