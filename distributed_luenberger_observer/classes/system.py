@@ -274,15 +274,18 @@ class MultiAgentGroups(MultiAgentSystem):
     class, it creates a multi agent system from a group
     of systems.
     """
-    def __init__(self, tuple_system_matrix, tuple_input_matrix, tuple_output_matrix, graph):
+    def __init__(self, A_agent, B_agent, tuple_output_matrix, graph):
 
-        self.tuple_system_matrix = tuple_system_matrix
-        self.tuple_input_matrix = tuple_input_matrix
-        self.A_plant = diag(tuple_system_matrix)
+        self.nbr_agent = graph.nbr_agent
+        self.A_plant = np.kron(np.eye(self.nbr_agent), A_agent)
         self.size_plant = np.shape(self.A_plant)[0]
-        self.nbr_agent = self.graph.nbr_agent
-        self.B_plant = diag(tuple_input_matrix)
-        self.tuple_output_matrix = tuple_output_matrix
+        self.B_plant = np.kron(np.eye(self.nbr_agent), B_agent)
+        self.tuple_output_matrix = list()
+        last_shape = 0
+        for i in range(self.nbr_agent):
+            shape_output = np.shape(tuple_output_matrix[i])[0]
+            self.tuple_output_matrix.append(diag(tuple_output_matrix)[last_shape:last_shape+ shape_output, :])
+            last_shape += shape_output
         self.A_plant_noisy = np.array(self.A_plant)
         self.A_plant_stabilized = np.array(self.A_plant)  
 
@@ -291,12 +294,12 @@ class MultiAgentGroups(MultiAgentSystem):
         self.graph = graph
 
     def is_jointly_obsv(self):
-        return np.linalg.matrix_rank(obsv(self.A_plant, diag(self.tuple_output_matrix))) == self.size_plant
+        return np.linalg.matrix_rank(obsv(self.A_plant, np.row_stack(self.tuple_output_matrix))) == self.size_plant
         
     def obsv_index(self):
         index_array = np.zeros((self.nbr_agent,))
         for i in range(self.nbr_agent):
-            index_array[i] = np.linalg.matrix_rank(obsv(self.tuple_system_matrix[i], self.tuple_output_matrix[i]))
+            index_array[i] = np.linalg.matrix_rank(obsv(self.A_plant[:int(self.size_plant/self.nbr_agent),:int(self.size_plant/self.nbr_agent)], self.tuple_output_matrix[i][:, i*(int(self.size_plant/self.nbr_agent)):(i+1)*int(self.size_plant/self.nbr_agent)]))
         return index_array
 
 # controllability/ consensus
