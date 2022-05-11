@@ -292,7 +292,7 @@ class MultiAgentGroups(MultiAgentSystem):
 
     def is_jointly_obsv(self):
         return np.linalg.matrix_rank(obsv(self.A_plant, diag(self.tuple_output_matrix))) == self.size_plant
-
+        
     def obsv_index(self):
         index_array = np.zeros((self.nbr_agent,))
         for i in range(self.nbr_agent):

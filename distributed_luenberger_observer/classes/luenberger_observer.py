@@ -64,9 +64,9 @@ class ObserverDesign:
         print("x_hat", self.x_hat[:, :, 0])
 
         self.y = np.zeros((np.shape(self.C_sys_concatenated)[0], nbr_step))
-        self.y_concatenated = np.zeros((self.multi_agent_system.nbr_agent, nbr_step))
+        self.y_concatenated = np.zeros((self.multi_agent_system.nbr_agent*np.shape(self.multi_agent_system.tuple_output_matrix[0])[0], nbr_step))
         self.y_hat = np.zeros((self.multi_agent_system.nbr_agent, np.shape(self.C_sys_concatenated)[0], nbr_step))
-        self.y_hat_concatenated = np.zeros((self.multi_agent_system.nbr_agent, nbr_step))
+        self.y_hat_concatenated = np.zeros((self.multi_agent_system.nbr_agent*np.shape(self.multi_agent_system.tuple_output_matrix[0])[0], nbr_step))
 
         if input == "step":
             self.u_sys = np.ones((np.shape(self.multi_agent_system.B_plant)[1], nbr_step))
@@ -116,13 +116,13 @@ class ObserverDesign:
 
         for i in range(self.multi_agent_system.nbr_agent):
             size_obsv = np.linalg.matrix_rank(obsv(A_sys, C[i]))
-            A_bar[str(i)], B_bar[str(i)], C_bar[str(i)], T[str(i)] = staircase(A_sys, B_sys, np.reshape(C[i], (1,np.shape(A_sys)[0])), form = "o")
+            A_bar[str(i)], B_bar[str(i)], C_bar[str(i)], T[str(i)] = staircase(A_sys, B_sys, np.reshape(C[i], (-1,np.shape(A_sys)[0])), form = "o")
             Ad[str(i)], _, _ = separate_A_bar(A_bar[str(i)], size_obsv)
             Hd[str(i)] = Hid(C_bar[str(i)], size_obsv)
             Ld[str(i)] = Lid(Ad[str(i)], Hd[str(i)])
             Md[str(i)] = Mid(Ad[str(i)], Ld[str(i)], Hd[str(i)])
             M_dict[str(i)] = Mi(T[str(i)], k[i], Md[str(i)], np.shape(A_sys)[0] - size_obsv)
-            L_dict[str(i)] = Li(T[str(i)], np.reshape(Ld[str(i)], (-1,)).T,  np.shape(A_sys)[0] - size_obsv)
+            L_dict[str(i)] = Li(T[str(i)], Ld[str(i)].T,  np.shape(A_sys)[0] - size_obsv)
 
         M = [v for v in M_dict.values()]
         M = diag(M)
@@ -162,7 +162,7 @@ class ObserverDesign:
         elif not(feedback_gain == None):
             self.K_sys = feedback_gain
 
-    def run_observer(self, type_observer = "output error", tol_t_response = 10**(-1)):
+    def run_observer(self, type_observer = "output error", tol_t_response = 10**(-2)):
         """ This function runs the observation algorithm with the 
         adaptive algorithm for choosing k_i.
         Arguments:
@@ -175,6 +175,7 @@ class ObserverDesign:
             the mean of the agents' estimates.
             step response.
         """
+
         self.parameters()
 
         nbr_step = int(self.t_max/self.step) if self.t_max != None else 10000
@@ -184,6 +185,8 @@ class ObserverDesign:
         K_sys_concatenated = np.kron(np.eye(self.multi_agent_system.nbr_agent), self.K_sys)
         k_adapt = np.ones((self.multi_agent_system.nbr_agent, nbr_step))
         first = True
+
+        w = 0 # initialisation for super twiting
 
         self.obsv_error_2 = np.zeros(np.shape(self.y_concatenated))
 
@@ -196,7 +199,7 @@ class ObserverDesign:
 
             if i> 20:
                 if np.allclose(self.y_concatenated[:, i-20:i] - self.y_hat_concatenated[:,i-20:i], 0, atol= tol_t_response) and first and i != 0:
-                    print(i*self.step, "s")
+                    print("step response",i*self.step, "s")
                     self.t_response = i*self.step
                     if self.t_max == None:
                         print("i am returning")
@@ -208,13 +211,18 @@ class ObserverDesign:
                     first = False
 
             if type_observer == "output error":
-                diff_output = self.y_concatenated[:, i] - self.y_hat_concatenated[:,i] + np.random.normal(0, self.std_noise_sensor, np.shape(self.y_concatenated[:, i]))
+                diff_output = self.y_concatenated[:, i] - self.y_hat_concatenated[:,i] 
+                + np.random.normal(0, self.std_noise_sensor, np.shape(self.y_concatenated[:, i]))
             elif type_observer == "sliding mode sign":
-                diff_output = np.sign(self.y_concatenated[:, i] - self.y_hat_concatenated[:,i] + np.random.normal(0, self.std_noise_sensor, np.shape(self.y_concatenated[:, i])))
+                diff_output = np.sign(self.y_concatenated[:, i] - self.y_hat_concatenated[:,i] 
+                + np.random.normal(0, self.std_noise_sensor, np.shape(self.y_concatenated[:, i])))
             elif type_observer == "sliding mode tanh":
-                diff_output = np.tanh(10*(self.y_concatenated[:, i] - self.y_hat_concatenated[:,i] + np.random.normal(0, self.std_noise_sensor, np.shape(self.y_concatenated[:, i]))))
+                diff_output = np.tanh(10*(self.y_concatenated[:, i] - self.y_hat_concatenated[:,i] 
+                + np.random.normal(0, self.std_noise_sensor, np.shape(self.y_concatenated[:, i]))))
             elif type_observer == "super twisting":
-                diff_output = np.tanh(10*(self.y_concatenated[:, i] - self.y_hat_concatenated[:,i]))*np.abs(self.y_concatenated[:, i] - self.y_hat_concatenated[:,i] + np.random.normal(0, self.std_noise_sensor, np.shape(self.y_concatenated[:, i])))**(1/2)
+                diff_output = np.tanh(20*(self.y_concatenated[:, i] - self.y_hat_concatenated[:,i]))*np.abs(self.y_concatenated[:, i] - self.y_hat_concatenated[:,i] +
+                 np.random.normal(0, self.std_noise_sensor, np.shape(self.y_concatenated[:, i])))**(4) + 0*w
+                w += self.step*10*np.tanh(10*(self.y_concatenated[:, i] - self.y_hat_concatenated[:,i]) +  np.random.normal(0, self.std_noise_sensor, np.shape(self.y_concatenated[:, i])))
             else: 
                 raise Exception("This type of observer doesn't exist, the existing types are: output error, sliding mode sign and sliding mode tanh")
 
@@ -228,7 +236,7 @@ class ObserverDesign:
                 k_adapt[ind,i+1] = k_adapt[ind,i] + self.step*np.linalg.norm(np.dot(self.multi_agent_system.graph.Lap[ind],(self.x_hat[:,:, i+1] - self.x_hat[ind,:, i+1])**2), 2)
                 size_obsv = np.linalg.matrix_rank(obsv(self.multi_agent_system.A_plant, self.multi_agent_system.tuple_output_matrix[ind]))
                 self.M_dict[str(ind)] = Mi(self.T[str(ind)], k_adapt[ind, i+1], self.Md[str(ind)], np.shape(self.multi_agent_system.A_plant)[0] - size_obsv)
-                self.L_dict[str(ind)] = Li(self.T[str(ind)], np.reshape(self.Ld[str(ind)], (-1,)).T,  np.shape(self.multi_agent_system.A_plant)[0] - size_obsv)
+                self.L_dict[str(ind)] = Li(self.T[str(ind)], self.Ld[str(ind)].T,  np.shape(self.multi_agent_system.A_plant)[0] - size_obsv)
 
             self.M = [v for v in self.M_dict.values()]
             self.M = diag(self.M)
