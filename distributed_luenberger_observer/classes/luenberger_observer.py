@@ -2,7 +2,6 @@ from .parameters_function import *
 from .system import *
 from harold import staircase
 import matplotlib.pyplot as plt
-from control import obsv
 
 class ObserverDesign:
     """ This class designs the Luenberger observer for
@@ -14,7 +13,7 @@ class ObserverDesign:
         (See article: https://ieeexplore.ieee.org/abstract/document/7799336?casa_token=SbrFD3Nbg9wAAAAA:wb0SGf4Me7eyVsPcYMdnPQPd6gambu2XQImDgxpcZ8lqdiq_Hns4sA6DpPugyb2IYAJmHC5V7oYe )
     """
     step = 0.01 # The precision of time
-    def __init__(self, multi_agent_system, x0, gamma, k0, t_max = None, input = "step", std_noise_parameters = 0, std_noise_sensor = 0):
+    def __init__(self, multi_agent_system, x0, gamma, k0, t_max = None, input = "step", std_noise_parameters = 0, std_noise_sensor = 0, std_noise_relative_sensor = 0):
         """ 
         Arguments:
             multi_agent_system: a MultiAgentSystem object for which 
@@ -28,6 +27,9 @@ class ObserverDesign:
             noise added to the parameters of the plant.
             std_noise_sensors: the standard deviation of the noise
             added to the outputs of the system y_i.
+            std_noise_relative_sensor: the standard deviation of 
+            the noise added to the outputs of the added relative 
+            measurements when it is necessary to correct defaults.
         Returns:
             None
         """
@@ -37,6 +39,7 @@ class ObserverDesign:
         self.std_percent = std_noise_parameters
         self.std_noise_parameters = std_noise_parameters*np.abs(np.mean(self.multi_agent_system.A_plant))
         self.std_noise_sensor = std_noise_sensor
+        self.std_noise_relative_sensor = std_noise_relative_sensor
         self.gamma = gamma
         self.k0 = k0
         self.t_max = t_max
@@ -53,7 +56,6 @@ class ObserverDesign:
 
         self.K_sys = np.zeros((np.shape(self.multi_agent_system.B_plant)[1], np.shape(self.multi_agent_system.A_plant)[0]))
 
-
         nbr_step = int(self.t_max/self.step) if t_max != None else 10000
 
         self.x = np.zeros((self.multi_agent_system.size_plant, nbr_step))
@@ -61,12 +63,11 @@ class ObserverDesign:
 
         self.x_hat = np.zeros((self.multi_agent_system.nbr_agent, self.multi_agent_system.size_plant, nbr_step))
         self.x_hat[:, : , 0] = np.random.uniform(-3, 3, (self.multi_agent_system.nbr_agent, self.multi_agent_system.size_plant))
-        print("x_hat", self.x_hat[:, :, 0])
 
         self.y = np.zeros((np.shape(self.C_sys_concatenated)[0], nbr_step))
-        self.y_concatenated = np.zeros((self.multi_agent_system.nbr_agent*np.shape(self.multi_agent_system.tuple_output_matrix[0])[0], nbr_step))
+        self.y_concatenated = np.zeros((np.shape(self.C_sys_concatenated)[0], nbr_step))
         self.y_hat = np.zeros((self.multi_agent_system.nbr_agent, np.shape(self.C_sys_concatenated)[0], nbr_step))
-        self.y_hat_concatenated = np.zeros((self.multi_agent_system.nbr_agent*np.shape(self.multi_agent_system.tuple_output_matrix[0])[0], nbr_step))
+        self.y_hat_concatenated = np.zeros((np.shape(self.C_sys_concatenated)[0], nbr_step))
 
         if input == "step":
             self.u_sys = np.ones((np.shape(self.multi_agent_system.B_plant)[1], nbr_step))
@@ -153,13 +154,13 @@ class ObserverDesign:
         Returns:
             None
         """
-        if not(desired_eig == None):
+        if not(np.all(desired_eig) == None):
             if self.std_noise_parameters == 0:
                 self.K_sys = place(self.multi_agent_system.A_plant_noisy, self.multi_agent_system.B_plant, desired_eig)
             else:
                 self.K_sys = place(self.multi_agent_system.A_plant, self.multi_agent_system.B_plant, desired_eig)
 
-        elif not(feedback_gain == None):
+        elif not(np.all(feedback_gain) == None):
             self.K_sys = feedback_gain
 
     def run_observer(self, type_observer = "output error", tol_t_response = 10**(-2)):
@@ -196,6 +197,8 @@ class ObserverDesign:
             x_concatenated = np.array([self.x[:, i] for _ in range(self.multi_agent_system.nbr_agent)])
             x_concatenated = np.reshape(x_concatenated, (np.shape(x_concatenated)[0]*np.shape(x_concatenated)[1], ))
             self.y_concatenated[:, i+1] = np.dot(self.C_sys_concatenated, x_concatenated)
+            
+            y_concatenated_noisy = self.add_sensors_noises(self.y_concatenated[:, i+1])    
 
             if i> 20:
                 if np.allclose(self.y_concatenated[:, i-20:i] - self.y_hat_concatenated[:,i-20:i], 0, atol= tol_t_response) and first and i != 0:
@@ -211,18 +214,16 @@ class ObserverDesign:
                     first = False
 
             if type_observer == "output error":
-                diff_output = self.y_concatenated[:, i] - self.y_hat_concatenated[:,i] 
-                + np.random.normal(0, self.std_noise_sensor, np.shape(self.y_concatenated[:, i]))
+                # print(np.shape(self.y_concatenated[:, i]))
+                # print(np.shape(self.y_hat_concatenated[:,i]))
+                diff_output = y_concatenated_noisy - self.y_hat_concatenated[:,i] 
             elif type_observer == "sliding mode sign":
-                diff_output = np.sign(self.y_concatenated[:, i] - self.y_hat_concatenated[:,i] 
-                + np.random.normal(0, self.std_noise_sensor, np.shape(self.y_concatenated[:, i])))
+                diff_output = np.sign(y_concatenated_noisy - self.y_hat_concatenated[:,i]) 
             elif type_observer == "sliding mode tanh":
-                diff_output = np.tanh(10*(self.y_concatenated[:, i] - self.y_hat_concatenated[:,i] 
-                + np.random.normal(0, self.std_noise_sensor, np.shape(self.y_concatenated[:, i]))))
+                diff_output = np.tanh(10*(y_concatenated_noisy - self.y_hat_concatenated[:,i]))
             elif type_observer == "super twisting":
-                diff_output = np.tanh(20*(self.y_concatenated[:, i] - self.y_hat_concatenated[:,i]))*np.abs(self.y_concatenated[:, i] - self.y_hat_concatenated[:,i] +
-                 np.random.normal(0, self.std_noise_sensor, np.shape(self.y_concatenated[:, i])))**(4) + 0*w
-                w += self.step*10*np.tanh(10*(self.y_concatenated[:, i] - self.y_hat_concatenated[:,i]) +  np.random.normal(0, self.std_noise_sensor, np.shape(self.y_concatenated[:, i])))
+                diff_output = np.tanh(20*(y_concatenated_noisy - self.y_hat_concatenated[:,i]))*np.abs(y_concatenated_noisy - self.y_hat_concatenated[:,i])**(4) + 0*w
+                w += self.step*10*np.tanh(10*(y_concatenated_noisy - self.y_hat_concatenated[:,i]))
             else: 
                 raise Exception("This type of observer doesn't exist, the existing types are: output error, sliding mode sign and sliding mode tanh")
 
@@ -249,6 +250,32 @@ class ObserverDesign:
         print("k", k_adapt[:, i])
         
         return 0, 0
+
+    def add_sensors_noises(self, y_concatenated):
+        """ This function adds noise to the output of the system, this
+        is equivalent to adding noise to sensors.
+        Arguments:
+            y_concatenated: the output to which noise will be added.
+        Returns:
+            the noisy version of the output y.
+        """
+
+        # print(self.multi_agent_system.faulty_agents)
+        sigma =  np.zeros(self.multi_agent_system.nbr_agent + len(self.multi_agent_system.faulty_agents)**2)
+
+        added_lines = np.zeros(len(self.multi_agent_system.faulty_agents)**2)
+
+        k = 0
+        for i in self.multi_agent_system.faulty_agents:
+            added_lines[k*(len(self.multi_agent_system.faulty_agents)):(k +1)*len(self.multi_agent_system.faulty_agents)] = np.arange(i + k*len(self.multi_agent_system.faulty_agents) + 1, i + (k+1)*len(self.multi_agent_system.faulty_agents) + 1)
+            k+=1
+
+        sigma[np.int8(added_lines)] = self.std_noise_relative_sensor
+
+        y_concatenated_noisy = y_concatenated + np.random.normal(0, self.std_noise_sensor, np.shape(y_concatenated))
+        y_concatenated_noisy += gaussian_noise(np.zeros(np.shape(y_concatenated)), sigma, np.shape(y_concatenated))
+
+        return y_concatenated_noisy
 
     def plot_states(self, saveFile = None, color = ["m", "#FFA500", "#ff6961", "#77DD77", "#5CA0FF", "#FFF35A", "#762EFF", "#5AECFF", "#00E02D", "#B10FFF"]):
         """ This function plots the response of the system to its 

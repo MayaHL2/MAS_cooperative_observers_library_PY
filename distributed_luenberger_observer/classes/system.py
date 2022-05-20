@@ -1,7 +1,9 @@
 import numpy as np
 from .helper_function import *
 from control import obsv, place
+from scipy.signal import place_poles
 import matplotlib.pyplot as plt
+from harold import staircase
  
 class MultiAgentSystem:
     """ This class defines a multi agent system and helps 
@@ -208,16 +210,17 @@ class MultiAgentSystem:
             None
         """
 
-        if not(desired_eig == None):
+        if not(np.all(desired_eig) == None):
             if not(noisy):
-                K = place(self.A_plant_noisy, self.B_plant, desired_eig)
+                K = place_poles(self.A_plant_noisy, self.B_plant, desired_eig, maxiter= 100)
+                print(K)
                 self.A_plant_stabilized = self.A_plant - np.dot(self.B_plant, K)
             else:
-                K = place(self.A_plant, self.B_plant, desired_eig)
+                K = place_poles(self.A_plant, self.B_plant, desired_eig)
                 self.A_plant_stabilized = self.A_plant - np.dot(self.B_plant, K)
             return K
 
-        elif not(feedback_gain == None):
+        elif not(np.all(feedback_gain) == None):
             self.A_plant_stabilized = self.A_plant - np.dot(self.B_plant, feedback_gain)
             return np.linalg.eig(self.A_plant_stabilized)
 
@@ -241,6 +244,7 @@ class MultiAgentSystem:
             self.A_plant_noisy[np.where(self.A_plant == 0)] = 0
         
         return self.A_plant_noisy
+
         
 
 
@@ -281,11 +285,8 @@ class MultiAgentGroups(MultiAgentSystem):
         self.size_plant = np.shape(self.A_plant)[0]
         self.B_plant = np.kron(np.eye(self.nbr_agent), B_agent)
         self.tuple_output_matrix = list()
-        last_shape = 0
         for i in range(self.nbr_agent):
-            shape_output = np.shape(tuple_output_matrix[i])[0]
-            self.tuple_output_matrix.append(diag(tuple_output_matrix)[last_shape:last_shape+ shape_output, :])
-            last_shape += shape_output
+            self.tuple_output_matrix.append(np.kron(np.eye(self.nbr_agent)[i], tuple_output_matrix[i]))
         self.A_plant_noisy = np.array(self.A_plant)
         self.A_plant_stabilized = np.array(self.A_plant)  
 
@@ -293,13 +294,101 @@ class MultiAgentGroups(MultiAgentSystem):
 
         self.graph = graph
 
+        self.obsv_index()
+        if len(self.find_faulty_agents()) != 0:
+            print("There are agents with faults")
+
+
     def is_jointly_obsv(self):
+        """ This function tests if the system is jointly observable
+        Arguments:
+            None
+        Returns:
+            True if the system is jointly observable, otherwize False
+        """
         return np.linalg.matrix_rank(obsv(self.A_plant, np.row_stack(self.tuple_output_matrix))) == self.size_plant
         
     def obsv_index(self):
-        index_array = np.zeros((self.nbr_agent,))
+        """ This function tests if the observability of each agent with respect
+        to the plant
+        Arguments:
+            None
+        Returns:
+            indew_array: a list of the observability index of each agent with 
+            respect to the plant order following the argument self.tuple_output_matrix
+        """
+        self.index_array = np.zeros((self.nbr_agent,))
         for i in range(self.nbr_agent):
-            index_array[i] = np.linalg.matrix_rank(obsv(self.A_plant[:int(self.size_plant/self.nbr_agent),:int(self.size_plant/self.nbr_agent)], self.tuple_output_matrix[i][:, i*(int(self.size_plant/self.nbr_agent)):(i+1)*int(self.size_plant/self.nbr_agent)]))
-        return index_array
+            self.index_array[i] = np.linalg.matrix_rank(obsv(self.A_plant[:int(self.size_plant/self.nbr_agent),:int(self.size_plant/self.nbr_agent)], self.tuple_output_matrix[i][:, i*(int(self.size_plant/self.nbr_agent)):(i+1)*int(self.size_plant/self.nbr_agent)]))
+        return self.index_array
+
+    def find_faulty_agents(self):
+        """ This function find all the agents that are not observable
+        to the plant
+        Arguments:
+            None
+        Returns:
+            faulty_agents: a list of the positions of the faulty 
+            agents.
+        """
+        self.faulty_agents = np.where(self.index_array < self.size_plant/self.nbr_agent)[0]
+        return self.faulty_agents
+
+    def get_needed_states_for_faulty_agent(self, nbr_iteration = 5):
+        """ Find the states missing to make an unobservable 
+        agent's system observable. It changes the values of
+        the output matrices of the agents.
+            Arguments:
+                nbr_iteration: the number of itertion to 
+                run the algorithm before saying that the 
+                system can't become observable.
+            Returns:
+                None
+            """
+
+        added_states = 0
+        for i in self.faulty_agents:
+
+            A = self.A_plant[:int(self.size_plant/self.nbr_agent), :int(self.size_plant/self.nbr_agent)]
+            C = self.tuple_output_matrix[i][:, i*(int(self.size_plant/self.nbr_agent)):(i+1)*int(self.size_plant/self.nbr_agent)]
+        
+            obsv_ind = np.linalg.matrix_rank(obsv(A, C))
+
+            it = 0
+            added_obs_states = C
+
+            while obsv_ind!= A.shape[0] and it < nbr_iteration:
+
+                _, _, _, T = staircase(A, self.B_plant[:int(self.B_plant.shape[0]/self.nbr_agent), :int(self.B_plant.shape[0]/self.nbr_agent)], C, form = "o")
+                obsv_ind = np.linalg.matrix_rank(obsv(A, C))
+
+                P = np.zeros(A.shape)
+                P[obsv_ind:, :] = T[obsv_ind:, :]
+
+                added_obs_states = added_obs_states + np.sum(P, axis = 0)
+                obsv_ind = np.linalg.matrix_rank(obsv(A, added_obs_states))
+                it += 1
+
+            if obsv_ind != A.shape[0]:
+                assert("It is not possible for the system to become observable")
+            
+            added_obs_states = np.float16(np.logical_or(added_obs_states> 10**(-6), added_obs_states<- 10**(-6))) - C
+            C = np.row_stack((C, -added_obs_states))
+
+            for k in range(len(self.tuple_output_matrix)):
+                if (k not in self.faulty_agents) and (k in np.where(self.graph.Adj[i,:]>0)[0]):
+                    self.tuple_output_matrix[k] = np.row_stack((self.tuple_output_matrix[k], np.kron(np.eye(self.nbr_agent)[i], -added_obs_states) + np.kron(np.eye(self.nbr_agent)[k], added_obs_states)))
+            added_states += 1
+
+            
+
+            # self.tuple_output_matrix[i] = np.kron(np.eye(self.nbr_agent)[i], C)
+        
+    def print_plant_state_space(self):
+        print("A\n", self.A_plant)
+        print("")
+        print("B\n", self.B_plant)
+        print("")
+        print("C\n", np.row_stack(self.tuple_output_matrix))
 
 # controllability/ consensus

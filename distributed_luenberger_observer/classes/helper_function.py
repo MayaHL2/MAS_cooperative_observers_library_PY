@@ -17,3 +17,9 @@ def diag(tuple_matrix): # Only works on two dimentional matrices
 
 def p_norm(vector, p):
     return (np.sum(np.abs(vector)**p))**(1/p)
+
+def gaussian_noise(mu, sigma, size):
+    random = np.zeros(size)
+    for i in range(size[0]):
+        random[i] = np.random.normal(mu[i], sigma[i])
+    return random
