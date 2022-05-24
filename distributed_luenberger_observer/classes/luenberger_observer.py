@@ -202,13 +202,12 @@ class ObserverDesign:
             x_concatenated = np.array([self.x[:, i] for _ in range(self.multi_agent_system.nbr_agent)])
             x_concatenated = np.reshape(x_concatenated, (np.shape(x_concatenated)[0]*np.shape(x_concatenated)[1], ))
             self.y_concatenated[:, i+1] = np.dot(self.C_sys_concatenated, x_concatenated)
-            
-            y_concatenated_noisy = self.add_sensors_noises(self.y_concatenated[:, i+1])    
 
+            y_concatenated_noisy = self.add_sensors_noises(self.y_concatenated[:, i]) 
 
             if i> 20:
                 if np.allclose(self.y_concatenated[:, i-20:i] - self.y_hat_concatenated[:,i-20:i], 0, atol= tol_t_response) and first and i != 0:
-                    print("step response",i*self.step, "s")
+                    print(i*self.step, "s")
                     self.t_response = i*self.step
                     if self.t_max == None:
                         print("i am returning")
@@ -220,11 +219,9 @@ class ObserverDesign:
                     first = False
 
             if type_observer == "output error":
-                # print(np.shape(self.y_concatenated[:, i]))
-                # print(np.shape(self.y_hat_concatenated[:,i]))
                 diff_output = y_concatenated_noisy - self.y_hat_concatenated[:,i] 
             elif type_observer == "sliding mode sign":
-                diff_output = np.sign(y_concatenated_noisy - self.y_hat_concatenated[:,i]) 
+                diff_output = np.sign(y_concatenated_noisy - self.y_hat_concatenated[:,i])
             elif type_observer == "sliding mode tanh":
                 diff_output = np.tanh(10*(y_concatenated_noisy - self.y_hat_concatenated[:,i]))
             elif type_observer == "super twisting":
