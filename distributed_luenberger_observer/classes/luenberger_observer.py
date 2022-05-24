@@ -36,6 +36,11 @@ class ObserverDesign:
         np.random.seed(0)
 
         self.multi_agent_system = multi_agent_system
+
+        # if not(self.multi_agent_system.is_jointly_obsv()):
+        #     raise Exception("This system is not jointly observable")
+
+
         self.std_percent = std_noise_parameters
         self.std_noise_parameters = std_noise_parameters*np.abs(np.mean(self.multi_agent_system.A_plant))
         self.std_noise_sensor = std_noise_sensor
@@ -200,6 +205,7 @@ class ObserverDesign:
             
             y_concatenated_noisy = self.add_sensors_noises(self.y_concatenated[:, i+1])    
 
+
             if i> 20:
                 if np.allclose(self.y_concatenated[:, i-20:i] - self.y_hat_concatenated[:,i-20:i], 0, atol= tol_t_response) and first and i != 0:
                     print("step response",i*self.step, "s")
@@ -260,22 +266,16 @@ class ObserverDesign:
             the noisy version of the output y.
         """
 
-        # print(self.multi_agent_system.faulty_agents)
-        sigma =  np.zeros(self.multi_agent_system.nbr_agent + len(self.multi_agent_system.faulty_agents)**2)
+        if self.multi_agent_system.type == "MultiAgentGroups":
+            sigma = self.std_noise_relative_sensor*self.multi_agent_system.added_output
+            y_concatenated_noisy = y_concatenated + np.random.normal(0, self.std_noise_sensor, np.shape(y_concatenated))
+        
+            y_concatenated_noisy += gaussian_noise(np.zeros(np.shape(y_concatenated)), sigma, np.shape(y_concatenated))
 
-        added_lines = np.zeros(len(self.multi_agent_system.faulty_agents)**2)
-
-        k = 0
-        for i in self.multi_agent_system.faulty_agents:
-            added_lines[k*(len(self.multi_agent_system.faulty_agents)):(k +1)*len(self.multi_agent_system.faulty_agents)] = np.arange(i + k*len(self.multi_agent_system.faulty_agents) + 1, i + (k+1)*len(self.multi_agent_system.faulty_agents) + 1)
-            k+=1
-
-        sigma[np.int8(added_lines)] = self.std_noise_relative_sensor
-
-        y_concatenated_noisy = y_concatenated + np.random.normal(0, self.std_noise_sensor, np.shape(y_concatenated))
-        y_concatenated_noisy += gaussian_noise(np.zeros(np.shape(y_concatenated)), sigma, np.shape(y_concatenated))
-
-        return y_concatenated_noisy
+            return y_concatenated_noisy
+        
+        else:
+            return y_concatenated + np.random.normal(0, self.std_noise_sensor, np.shape(y_concatenated))
 
     def plot_states(self, saveFile = None, color = ["m", "#FFA500", "#ff6961", "#77DD77", "#5CA0FF", "#FFF35A", "#762EFF", "#5AECFF", "#00E02D", "#B10FFF"]):
         """ This function plots the response of the system to its 

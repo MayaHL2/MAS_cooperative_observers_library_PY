@@ -1,4 +1,4 @@
-from control import place, ctrb
+from control import place
 from scipy.linalg import solve_continuous_are
 from .helper_function import *
 
@@ -13,7 +13,7 @@ def Li(Ti, Lid, size_unobservable):
     Li[0:np.shape(Lid)[0], :] = Lid
     return np.reshape(np.dot(Ti, Li), (-1, np.shape(Lid)[1]))
 
-def Lid(Aid, Hid, minEig = 2, maxEig = 4):
+def Lid(Aid, Hid, minEig = 7, maxEig = 10):
     eig = -np.random.uniform(minEig, maxEig, np.shape(Aid)[0])
     print("eig observer", eig)
     return place(Aid.T,  np.reshape(Hid, (-1,np.shape(Aid)[0])).T, eig)

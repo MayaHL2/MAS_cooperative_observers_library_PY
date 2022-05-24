@@ -1,7 +1,7 @@
 import numpy as np
 
 f = open("K.txt", "r")
-K = np.zeros((8, 24))
+K = np.zeros((4, 12))
 
 i = 0
 for line in f:

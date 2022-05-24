@@ -1,7 +1,7 @@
 import numpy as np
 from .helper_function import *
-from control import obsv, place
-from scipy.signal import place_poles
+from control import obsv
+from control import place
 import matplotlib.pyplot as plt
 from harold import staircase
  
@@ -29,6 +29,7 @@ class MultiAgentSystem:
         self.A_plant_noisy = np.array(self.A_plant)
         self.A_plant_stabilized = np.array(self.A_plant)
         self.form = "normal" # The form in which the matrix was written
+        self.type = "MultiAgentSystem"
         self.graph = graph
         self.nbr_agent = self.graph.nbr_agent
 
@@ -52,6 +53,7 @@ class MultiAgentSystem:
         """
         index_array = np.zeros((self.nbr_agent,))
         for i in range(self.nbr_agent):
+            print(self.tuple_output_matrix[i])
             index_array[i] = np.linalg.matrix_rank(obsv(self.A_plant, self.tuple_output_matrix[i]))
         return index_array
 
@@ -212,11 +214,10 @@ class MultiAgentSystem:
 
         if not(np.all(desired_eig) == None):
             if not(noisy):
-                K = place_poles(self.A_plant_noisy, self.B_plant, desired_eig, maxiter= 100)
-                print(K)
+                K = place(self.A_plant_noisy, self.B_plant, desired_eig)
                 self.A_plant_stabilized = self.A_plant - np.dot(self.B_plant, K)
             else:
-                K = place_poles(self.A_plant, self.B_plant, desired_eig)
+                K = place(self.A_plant, self.B_plant, desired_eig)
                 self.A_plant_stabilized = self.A_plant - np.dot(self.B_plant, K)
             return K
 
@@ -253,6 +254,7 @@ class RandomStandardSystem(MultiAgentSystem):
     class, it creates a random multi agent system in a 
     standard form.
     """
+    step = 0.01  # The precision of time
     def __init__(self, size_plant, random_range, B_plant, tuple_output_matrix, graph):
 
         self.size_plant = size_plant
@@ -269,6 +271,7 @@ class RandomStandardSystem(MultiAgentSystem):
         self.A_plant_stabilized = np.array(self.A_plant)  
 
         self.form = "standard" 
+        self.type = "RandomStandardSystem"
 
         self.graph = graph
         self.nbr_agent = self.graph.nbr_agent
@@ -278,8 +281,17 @@ class MultiAgentGroups(MultiAgentSystem):
     class, it creates a multi agent system from a group
     of systems.
     """
+    step = 0.01  # The precision of time
     def __init__(self, A_agent, B_agent, tuple_output_matrix, graph):
-
+        """ 
+        Arguments:
+            A_agent: the state space matrix of an agent of the plant
+            B_plant: the input matrix of an agent of the plant
+            tuple_output_matrix: a tuple or a dictionnary containing 
+            the output matrices of each agent.
+        Returns:
+            None
+        """
         self.nbr_agent = graph.nbr_agent
         self.A_plant = np.kron(np.eye(self.nbr_agent), A_agent)
         self.size_plant = np.shape(self.A_plant)[0]
@@ -291,6 +303,7 @@ class MultiAgentGroups(MultiAgentSystem):
         self.A_plant_stabilized = np.array(self.A_plant)  
 
         self.form = "normal" 
+        self.type = "MultiAgentGroups"
 
         self.graph = graph
 
@@ -345,46 +358,83 @@ class MultiAgentGroups(MultiAgentSystem):
             Returns:
                 None
             """
-
-        added_states = 0
-        for i in self.faulty_agents:
-
-            A = self.A_plant[:int(self.size_plant/self.nbr_agent), :int(self.size_plant/self.nbr_agent)]
-            C = self.tuple_output_matrix[i][:, i*(int(self.size_plant/self.nbr_agent)):(i+1)*int(self.size_plant/self.nbr_agent)]
         
-            obsv_ind = np.linalg.matrix_rank(obsv(A, C))
+        if len(self.faulty_agents) == 0:
+            self.added_output = np.zeros(np.row_stack(self.tuple_output_matrix).shape[0])
+            print("There are no faulty agents, no need to change the output matrices")
+        else:
+            added_states = 0
+            self.added_output = np.array([])
 
-            it = 0
-            added_obs_states = C
+            for i in self.faulty_agents:
 
-            while obsv_ind!= A.shape[0] and it < nbr_iteration:
-
-                _, _, _, T = staircase(A, self.B_plant[:int(self.B_plant.shape[0]/self.nbr_agent), :int(self.B_plant.shape[0]/self.nbr_agent)], C, form = "o")
+                A = self.A_plant[:int(self.size_plant/self.nbr_agent), :int(self.size_plant/self.nbr_agent)]
+                C = self.tuple_output_matrix[i][:, i*(int(self.size_plant/self.nbr_agent)):(i+1)*int(self.size_plant/self.nbr_agent)]
+            
                 obsv_ind = np.linalg.matrix_rank(obsv(A, C))
 
-                P = np.zeros(A.shape)
-                P[obsv_ind:, :] = T[obsv_ind:, :]
+                it = 0
+                added_obs_states = np.zeros((A.shape[0] - obsv_ind, np.shape(C)[1]))
 
-                added_obs_states = added_obs_states + np.sum(P, axis = 0)
-                obsv_ind = np.linalg.matrix_rank(obsv(A, added_obs_states))
-                it += 1
+                while obsv_ind!= A.shape[0] and it < nbr_iteration:
+                    # The non-observable states are defined by taking the last lines of the
+                    # transformation (obsv/no-obsv) matrix because it will organise them in 
+                    # obsv then non-obsv and we need non-obsv
+                    _, _, _, T = staircase(A, self.B_plant[:int(self.B_plant.shape[0]/self.nbr_agent), :int(self.B_plant.shape[0]/self.nbr_agent)], C, form = "o")
+                    obsv_ind = np.linalg.matrix_rank(obsv(A, C))
 
-            if obsv_ind != A.shape[0]:
-                assert("It is not possible for the system to become observable")
-            
-            added_obs_states = np.float16(np.logical_or(added_obs_states> 10**(-6), added_obs_states<- 10**(-6))) - C
-            C = np.row_stack((C, -added_obs_states))
+                    # P = np.zeros(A.shape)
+                    # P[obsv_ind:, :] = T[obsv_ind:, :]
+                    T = T.T
+                    added_obs_states = added_obs_states + T[obsv_ind:, :]
+                    
+                    obsv_ind = np.linalg.matrix_rank(obsv(A, np.row_stack((C, added_obs_states))))
+                    it += 1
 
-            for k in range(len(self.tuple_output_matrix)):
-                if (k not in self.faulty_agents) and (k in np.where(self.graph.Adj[i,:]>0)[0]):
-                    self.tuple_output_matrix[k] = np.row_stack((self.tuple_output_matrix[k], np.kron(np.eye(self.nbr_agent)[i], -added_obs_states) + np.kron(np.eye(self.nbr_agent)[k], added_obs_states)))
-            added_states += 1
+                if obsv_ind != A.shape[0]:
+                    raise Exception("It is not possible for the system to become observable")
+                
+                # We only need 1 and 0 in the observable states that we need to add 
+                # because having real values can consume a lot of memory and it is 
+                #  not necessary
+                added_obs_states = np.float16(np.logical_or(added_obs_states> 10**(-6), added_obs_states<- 10**(-6))) 
 
-            
+                
+                for k in range(len(self.tuple_output_matrix)):
+                    if (k not in self.faulty_agents) and (k in np.where(self.graph.Adj[i,:]>0)[0]):
+                        # Stacking the output matrix of the system and the added relative 
+                        # measurements.                
+                        self.tuple_output_matrix[k] = np.row_stack((self.tuple_output_matrix[k],
+                                                                    np.kron(
+                                                                        np.eye(self.nbr_agent)[i],
+                                                                         -added_obs_states)
+                                                                    + np.kron(
+                                                                        np.eye(self.nbr_agent)[k],
+                                                                         added_obs_states)))
+                    
+                    # This is a way of keeping which states were added and which ones 
+                    # were there from the begining, it is useful when adding the noise
+                    # to relative sensing.
+                    if added_states == 0 and (k not in self.faulty_agents):
+                        nbr_faulty_neighboors = 0
+                        for agent in self.faulty_agents:
+                            if agent in  np.where(self.graph.Adj[k,:]>0)[0]:
+                                nbr_faulty_neighboors += 1
+                        x = np.ones(np.shape(self.tuple_output_matrix[k])[0])
+                        x[:np.shape(C)[0]] = 0
+                        self.added_output = np.append(self.added_output, x)
+                    elif added_states == 0 and (k in self.faulty_agents):
+                        self.added_output = np.append(self.added_output, np.zeros(np.shape(self.tuple_output_matrix[k])[0]))
+        
+                added_states += 1
+                # self.tuple_output_matrix[i] = np.kron(np.eye(self.nbr_agent)[i], C)
 
-            # self.tuple_output_matrix[i] = np.kron(np.eye(self.nbr_agent)[i], C)
+           
         
     def print_plant_state_space(self):
+        """ This function prints the states of the multi-
+        agent system.
+        """
         print("A\n", self.A_plant)
         print("")
         print("B\n", self.B_plant)
