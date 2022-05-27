@@ -1,4 +1,4 @@
-from control import place
+from control import place, ctrb
 from scipy.linalg import solve_continuous_are
 from .helper_function import *
 

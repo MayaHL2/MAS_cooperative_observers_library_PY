@@ -1,25 +1,17 @@
-import numpy as np
-from control import obsv
-from harold import staircase
-from classes.quadrotor import *
-from classes.helper_function import *
+from classes.graph import *
+
+nbr_agent = 6
+G = Graph(nbr_agent, [[0, 1, 1, 0, 0, 1], [1, 0, 1, 0, 0, 0], [1, 1, 0, 1, 0, 0], [0, 0, 1, 0, 1, 0], [0, 0, 0, 1, 0, 0], [1, 0, 0, 0, 0, 0]])
+G.Is_strongly_connected()
 
 
-A_sys = np.array([[-1, 0, 0],
-                 [0, -2, 0],
-                 [0, 0, -3]])
-print(np.linalg.eig(A_sys))
+G = Graph(3, [[0, 1, 0], [1, 0, 1], [0, 1, 0]]) 
+faulty_agents = [0]
 
-B_sys = np.array([[1], [1], [1]])
+# print(find_minimal_connected_faulty_graph(G, [0], [0]))
 
-C1 = np.array([[0, 0, 1]])
-C2 = np.array([[1, 1, 1]])
-C3 = np.array([[1, 1, 1]])
-C4 = np.array([[1, 1, 1]])
+new_nodes = G.find_list_minimal_connected_faulty_graph(faulty_agents)
 
-print(np.linalg.matrix_rank(obsv(A_sys, C1)))
-
-A_bar, B_bar, C_bar, T = staircase(A_sys, B_sys, C1, form = "o")
-
-print(A_bar)
-print(T)
+H = G.find_sub_graph(new_nodes[0])
+print(H.nbr_agent)
+print(H.Adj)

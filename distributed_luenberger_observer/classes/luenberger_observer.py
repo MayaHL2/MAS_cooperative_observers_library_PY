@@ -9,7 +9,7 @@ class ObserverDesign:
     using different types of inputs.
     The Distribued Luenberger Observer is defined as 
     follows: 
-        dx_hat_i = A  x_hat_i + L_i(y_i - C_i x_hat_i) + gamma M_i(k_i)^(-1) sum_{j in x_i' neighboor} (x_hat_j - x_hat_i)
+        dx_hat_i = A  x_hat_i + L_i(y_i - C_i x_hat_i) + gamma M_i(k_i)^(-1) sum_{j in x_i' neighbor} (x_hat_j - x_hat_i)
         (See article: https://ieeexplore.ieee.org/abstract/document/7799336?casa_token=SbrFD3Nbg9wAAAAA:wb0SGf4Me7eyVsPcYMdnPQPd6gambu2XQImDgxpcZ8lqdiq_Hns4sA6DpPugyb2IYAJmHC5V7oYe )
     """
     step = 0.01 # The precision of time
@@ -37,8 +37,8 @@ class ObserverDesign:
 
         self.multi_agent_system = multi_agent_system
 
-        # if not(self.multi_agent_system.is_jointly_obsv()):
-        #     raise Exception("This system is not jointly observable")
+        if not(self.multi_agent_system.is_jointly_obsv()):
+            raise Exception("This system is not jointly observable")
 
 
         self.std_percent = std_noise_parameters
@@ -76,11 +76,15 @@ class ObserverDesign:
 
         if input == "step":
             self.u_sys = np.ones((np.shape(self.multi_agent_system.B_plant)[1], nbr_step))
+        if input == "random":
+            self.u_sys = np.random.rand(np.shape(self.multi_agent_system.B_plant)[1], nbr_step)
         elif input == "cos":
-            self.u_sys = np.cos(np.row_stack((np.arange(0, t_max, self.step), np.arange(0, t_max, self.step))))
+            self.u_sys = np.zeros((np.shape(self.multi_agent_system.B_plant)[1], nbr_step))
         elif input == "zero":
             self.u_sys = np.zeros((np.shape(self.multi_agent_system.B_plant)[1], nbr_step))
-        
+        else:
+            self.u_sys = np.expand_dims(np.random.rand(np.shape(self.multi_agent_system.B_plant)[1]), axis = 1)*np.ones((np.shape(self.multi_agent_system.B_plant)[1], nbr_step))
+           
     def parameters(self):
         """ This function choses the right parameters to ensure the
         convergence of the observer
@@ -160,7 +164,7 @@ class ObserverDesign:
             None
         """
         if not(np.all(desired_eig) == None):
-            if self.std_noise_parameters == 0:
+            if self.std_noise_parameters != 0:
                 self.K_sys = place(self.multi_agent_system.A_plant_noisy, self.multi_agent_system.B_plant, desired_eig)
             else:
                 self.K_sys = place(self.multi_agent_system.A_plant, self.multi_agent_system.B_plant, desired_eig)
@@ -168,7 +172,7 @@ class ObserverDesign:
         elif not(np.all(feedback_gain) == None):
             self.K_sys = feedback_gain
 
-    def run_observer(self, type_observer = "output error", tol_t_response = 10**(-2)):
+    def run_observer(self, type_observer = "output error", lost_connexion = None, tol_t_response = 10**(-2)):
         """ This function runs the observation algorithm with the 
         adaptive algorithm for choosing k_i.
         Arguments:
@@ -176,6 +180,9 @@ class ObserverDesign:
             error in the design of the observer, there are four types:
             "output error", "sliding mode sign",  "sliding mode tanh", 
             and "super twisting".
+            lost_connexion: it is entered to the function if we wan to
+            simulate a loss of connection of some agents
+            [[list agents that lost connection], start time of connection loss in seconds, end time of connection loss in seconds]
             tol_t_response: tolerance of the step response.
         Returns:
             the mean of the agents' estimates.
@@ -190,7 +197,11 @@ class ObserverDesign:
         u_concatenated = np.reshape(np.array([self.u_sys for _ in range(self.multi_agent_system.nbr_agent)]), (np.shape(self.B_sys_concatenated )[1], -1))
         K_sys_concatenated = np.kron(np.eye(self.multi_agent_system.nbr_agent), self.K_sys)
         k_adapt = np.ones((self.multi_agent_system.nbr_agent, nbr_step))
+        k_adapt[:, 0] = self.k0
         first = True
+
+        if np.all(lost_connexion == None):
+            lost_connexion = [[], 0, 0]
 
         w = 0 # initialisation for super twiting
 
@@ -231,8 +242,24 @@ class ObserverDesign:
                 raise Exception("This type of observer doesn't exist, the existing types are: output error, sliding mode sign and sliding mode tanh")
 
             x_hat_concatenated[:,i+1] = self.step*np.dot(self.A_sys_noisy_concatenated - np.dot(self.B_sys_concatenated, K_sys_concatenated), x_hat_concatenated[:,i]) + self.step*np.reshape(np.dot(self.B_sys_concatenated, u_concatenated[:,i]), (-1, )) + x_hat_concatenated[:,i]  + self.step*np.dot(self.L, diff_output) + self.step*self.gamma*np.dot(np.dot(np.linalg.inv(self.M), -Laplacien_m), x_hat_concatenated[:, i])
+
+            # else: 
+            if (i>lost_connexion[1]/self.step and i<lost_connexion[2]/self.step):
+                for agent in lost_connexion[0]:
+                    min_i = int(agent*self.multi_agent_system.A_plant.shape[0])
+                    max_i = int((agent+1)*self.multi_agent_system.A_plant.shape[0])
+
+                    min_u = int(agent*self.multi_agent_system.B_plant.shape[1])
+                    max_u = int((agent+1)*self.multi_agent_system.B_plant.shape[1])
+
+
+                    # x_hat_concatenated[min_i:max_i,i+1] = x_hat_concatenated[min_i:max_i,i]
+                    x_hat_concatenated[min_i:max_i, i+1] = self.step*np.dot(self.multi_agent_system.A_plant - np.dot(self.multi_agent_system.B_plant, self.K_sys), x_hat_concatenated[min_i:max_i, i]) + self.step*np.reshape(np.dot(self.multi_agent_system.B_plant, u_concatenated[min_u:max_u,i]), (-1, )) + x_hat_concatenated[min_i:max_i,i]  
+            
+            
             self.x_hat[:,:, i+1] = np.reshape(x_hat_concatenated[:,i+1], (self.multi_agent_system.nbr_agent, np.shape(self.multi_agent_system.A_plant)[0],))
             self.y_hat_concatenated[:,i+1] = np.dot(self.C_sys_concatenated, x_hat_concatenated[:,i])
+
 
             self.obsv_error_2[:, i+1] = self.obsv_error_2[:, i] + self.step*(self.y_concatenated[:, i] - self.y_hat_concatenated[:, i])**2
 

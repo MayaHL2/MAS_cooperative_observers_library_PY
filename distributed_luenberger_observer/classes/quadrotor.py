@@ -67,7 +67,7 @@ class Quadrotor:
         """ This function returns the states of the multi-
             agent system.
         """
-        return self.A, self.B, self.C
+        return self.A, self.B, self.C_faulty
 
     def rotation_speeds_2_inputs(self, Omega):
         self.inputs = np.dot(np.array(

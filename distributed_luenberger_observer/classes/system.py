@@ -53,7 +53,6 @@ class MultiAgentSystem:
         """
         index_array = np.zeros((self.nbr_agent,))
         for i in range(self.nbr_agent):
-            print(self.tuple_output_matrix[i])
             index_array[i] = np.linalg.matrix_rank(obsv(self.A_plant, self.tuple_output_matrix[i]))
         return index_array
 
@@ -298,7 +297,7 @@ class MultiAgentGroups(MultiAgentSystem):
         self.B_plant = np.kron(np.eye(self.nbr_agent), B_agent)
         self.tuple_output_matrix = list()
         for i in range(self.nbr_agent):
-            self.tuple_output_matrix.append(np.kron(np.eye(self.nbr_agent)[i], tuple_output_matrix[i]))
+            self.tuple_output_matrix.append(np.kron(np.eye(self.nbr_agent)[i], tuple_output_matrix[i][~np.all(tuple_output_matrix[i] == 0, axis=1)]))
         self.A_plant_noisy = np.array(self.A_plant)
         self.A_plant_stabilized = np.array(self.A_plant)  
 
@@ -310,6 +309,8 @@ class MultiAgentGroups(MultiAgentSystem):
         self.obsv_index()
         if len(self.find_faulty_agents()) != 0:
             print("There are agents with faults")
+
+        self.added_output = np.zeros(np.shape(np.row_stack(tuple_output_matrix))[0])
 
 
     def is_jointly_obsv(self):
@@ -363,6 +364,7 @@ class MultiAgentGroups(MultiAgentSystem):
             self.added_output = np.zeros(np.row_stack(self.tuple_output_matrix).shape[0])
             print("There are no faulty agents, no need to change the output matrices")
         else:
+            
             added_states = 0
             self.added_output = np.array([])
 
@@ -370,7 +372,6 @@ class MultiAgentGroups(MultiAgentSystem):
 
                 A = self.A_plant[:int(self.size_plant/self.nbr_agent), :int(self.size_plant/self.nbr_agent)]
                 C = self.tuple_output_matrix[i][:, i*(int(self.size_plant/self.nbr_agent)):(i+1)*int(self.size_plant/self.nbr_agent)]
-            
                 obsv_ind = np.linalg.matrix_rank(obsv(A, C))
 
                 it = 0
@@ -382,6 +383,7 @@ class MultiAgentGroups(MultiAgentSystem):
                     # obsv then non-obsv and we need non-obsv
                     _, _, _, T = staircase(A, self.B_plant[:int(self.B_plant.shape[0]/self.nbr_agent), :int(self.B_plant.shape[0]/self.nbr_agent)], C, form = "o")
                     obsv_ind = np.linalg.matrix_rank(obsv(A, C))
+                    print("obsv_ind", obsv_ind)
 
                     # P = np.zeros(A.shape)
                     # P[obsv_ind:, :] = T[obsv_ind:, :]
@@ -403,7 +405,8 @@ class MultiAgentGroups(MultiAgentSystem):
                 for k in range(len(self.tuple_output_matrix)):
                     if (k not in self.faulty_agents) and (k in np.where(self.graph.Adj[i,:]>0)[0]):
                         # Stacking the output matrix of the system and the added relative 
-                        # measurements.                
+                        # measurements.  
+                        shape_before = self.tuple_output_matrix[k].shape[0] 
                         self.tuple_output_matrix[k] = np.row_stack((self.tuple_output_matrix[k],
                                                                     np.kron(
                                                                         np.eye(self.nbr_agent)[i],
@@ -411,19 +414,16 @@ class MultiAgentGroups(MultiAgentSystem):
                                                                     + np.kron(
                                                                         np.eye(self.nbr_agent)[k],
                                                                          added_obs_states)))
+
                     
                     # This is a way of keeping which states were added and which ones 
                     # were there from the begining, it is useful when adding the noise
                     # to relative sensing.
-                    if added_states == 0 and (k not in self.faulty_agents):
-                        nbr_faulty_neighboors = 0
-                        for agent in self.faulty_agents:
-                            if agent in  np.where(self.graph.Adj[k,:]>0)[0]:
-                                nbr_faulty_neighboors += 1
+                    if added_states == len(self.faulty_agents)-1 and (k not in self.faulty_agents):
                         x = np.ones(np.shape(self.tuple_output_matrix[k])[0])
-                        x[:np.shape(C)[0]] = 0
+                        x[:shape_before] = 0
                         self.added_output = np.append(self.added_output, x)
-                    elif added_states == 0 and (k in self.faulty_agents):
+                    elif added_states == len(self.faulty_agents)-1 and (k in self.faulty_agents):
                         self.added_output = np.append(self.added_output, np.zeros(np.shape(self.tuple_output_matrix[k])[0]))
         
                 added_states += 1
