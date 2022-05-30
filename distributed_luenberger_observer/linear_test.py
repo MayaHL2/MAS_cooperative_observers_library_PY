@@ -24,20 +24,32 @@ A_sys, B_sys, C = drone.get_state_space()
 A_sys = np.array([[1, 0, 0],
                  [0, -2, 0],
                  [0, 0, -3]])
+
+A_sys = np.array([[0, 1, 0, 0],
+                  [0, 0, 1, 0],
+                  [0, 0, 0, 1],
+                  [-2.7, -3.5, -1.4, -2.5]])
 # print(np.linalg.eig(A_sys))
 
 # std = std_percent*np.abs(np.mean(A_sys))
 
 B_sys = np.array([[1], [1], [1]])
+B_sys = np.array([[0, 0], [1, 0], [0, 0], [0, 1]])
+
 # C = np.eye(4)
 # C_sys = (np.array([[1, 0, 1, 1],[1, 0, 4, 7]]),np.array([[3, 1, 1, 1], [0, 0, -4, 0]]), np.array([[1, 0, 1, 0], [0, 1, 1, 1]]), np.array([[1, 6, 0, 2],  [0, 0, 5, 1]]))
 # C_sys = (np.reshape(C[:,0], (1, -1)), np.reshape([0, 1, 0, 0], (1, -1)), np.reshape([0, 0, 1, 0], (1,-1)), np.reshape(C[:,3], (1, -1)))
 
 # C0 = np.array([[1, 1, 1]])
-C1 = np.array([[1, 1, 1]])
-C2 = np.array([[0, 0, 1]])
-C3 = np.array([[1, 1, 1]])
-C4 = np.array([[1, 0, 1]])
+# C1 = np.array([[1, 1, 1]])
+# C2 = np.array([[0, 0, 1]])
+# C3 = np.array([[1, 1, 1]])
+# C4 = np.array([[1, 0, 1]])
+
+C1 = np.array([[1, 0, 0, 0]])
+C2 = np.array([[0, 1, 0, 0]])
+C3 = np.array([[0, 0, 1, 0]])
+C4 = np.array([[0, 0, 0, 1]])
 
 # C_faulty = drone.add_fault_to_agent("x")
 
@@ -68,7 +80,7 @@ print(np.row_stack(MA.tuple_output_matrix))
 # MA.step_response(10, stabilized= True)
 
 observer = ObserverDesign(multi_agent_system= MA, 
-                            t_max= 12, 
+                            t_max= 20, 
                             x0= np.ones(A_sys.shape[0]*nbr_agent), 
                             gamma= 6, 
                             k0= np.ones(nbr_agent),
@@ -77,9 +89,9 @@ observer = ObserverDesign(multi_agent_system= MA,
                             std_noise_relative_sensor = 0)
 
 # # observer.feedback_control_with_observer(feedback_gain= K_sys)
-observer.feedback_control_with_observer(desired_eig= -np.random.uniform(0.4, 1, np.shape(A_sys)[0]*nbr_agent))
+observer.feedback_control_with_observer(desired_eig= -np.random.uniform(2, 5, np.shape(A_sys)[0]*nbr_agent))
 
-observer.run_observer(type_observer = "output error", lost_connexion= [[0], 2, 4])
+observer.run_observer(type_observer = "output error", lost_connexion= [[], 2, 4])
 
 observer.plot_states()
 observer.plot_criateria()
