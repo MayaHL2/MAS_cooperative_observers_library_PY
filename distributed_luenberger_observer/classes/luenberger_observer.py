@@ -4,13 +4,23 @@ from harold import staircase
 import matplotlib.pyplot as plt
 
 class ObserverDesign:
-    """ This class designs the Luenberger observer for
-    a multi agent system, controls it, realises tests
-    using different types of inputs.
+    """ This class designs "the distributed Luenberger
+    observer" and "the distributed finite-time
+    observer" for a multi-agent system, controls this
+    latter and realises tests using different types of
+    inputs.
     The Distribued Luenberger Observer is defined as 
     follows: 
-        dx_hat_i = A  x_hat_i + L_i(y_i - C_i x_hat_i) + gamma M_i(k_i)^(-1) sum_{j in x_i' neighbor} (x_hat_j - x_hat_i)
+        dx_hat_i = A  x_hat_i + L_i(y_i - C_i x_hat_i) + gamma M_i(k_i)^(-1) sum_{j in x_i' neighbor} Adjacency_ij (x_hat_j - x_hat_i)
         (See article: https://ieeexplore.ieee.org/abstract/document/7799336?casa_token=SbrFD3Nbg9wAAAAA:wb0SGf4Me7eyVsPcYMdnPQPd6gambu2XQImDgxpcZ8lqdiq_Hns4sA6DpPugyb2IYAJmHC5V7oYe )
+   
+    The Distribued Luenberger Observer is defined as 
+    follows: 
+        dx_hat_i = A  x_hat_i + L_i[y_i - C_i x_hat_i]^gamma_i + sum_{j in x_i' neighbor} Adjacency_ij [x_hat_j - x_hat_i]^beta
+    With:
+        [x]^a <=> [sign(x1)*x1^a  sign(x2)*x2^a ... sign(xn)*xn^a]
+        (See article: https://ieeexplore.ieee.org/abstract/document/8360487/?casa_token=7c_pyhnc_woAAAAA:TVjPGoTVJDaTLFQ9nnF8PlU6zyNNSl1nlJ6AiNmtBp3Rtutuim0XGzYtS8GVtu_vCkOHMsz3vv4nWA )
+
     """
     step = 0.01 # The precision of time
     def __init__(self, multi_agent_system, x0, gamma, k0, t_max = None, input = "step", std_noise_parameters = 0, std_noise_sensor = 0, std_noise_relative_sensor = 0):
@@ -19,7 +29,8 @@ class ObserverDesign:
             multi_agent_system: a MultiAgentSystem object for which 
             the observervation will be performed.
             x0: the initial value of the states.
-            gamma: a parameter of the observer
+            gamma: a parameter of the observer (its purpose changes
+            depending on the type of observer chosen).
             k0: the initial value of the parameter k_i.
             t_max: the duration of the response and observation.
             input: the type of the input (step, impulse or cos).
@@ -40,9 +51,7 @@ class ObserverDesign:
         if not(self.multi_agent_system.is_jointly_obsv()):
             raise Exception("This system is not jointly observable")
 
-
-        self.std_percent = std_noise_parameters
-        self.std_noise_parameters = std_noise_parameters*np.abs(np.mean(self.multi_agent_system.A_plant))
+        self.std_noise_parameters = std_noise_parameters
         self.std_noise_sensor = std_noise_sensor
         self.std_noise_relative_sensor = std_noise_relative_sensor
         self.gamma = gamma
@@ -200,6 +209,8 @@ class ObserverDesign:
         k_adapt[:, 0] = self.k0
         first = True
 
+        beta = 1
+
         if np.all(lost_connexion == None):
             lost_connexion = [[], 0, 0]
 
@@ -231,17 +242,39 @@ class ObserverDesign:
 
             if type_observer == "output error":
                 diff_output = y_concatenated_noisy - self.y_hat_concatenated[:,i] 
+                consensus_tot =  self.gamma*np.dot(np.linalg.inv(self.M), np.dot(-Laplacien_m, x_hat_concatenated[:, i]))
+            
             elif type_observer == "sliding mode sign":
                 diff_output = np.sign(y_concatenated_noisy - self.y_hat_concatenated[:,i])
+                consensus_tot = self.gamma*np.dot(np.linalg.inv(self.M), np.dot(-Laplacien_m, x_hat_concatenated[:, i]))
+            
             elif type_observer == "sliding mode tanh":
                 diff_output = np.tanh(10*(y_concatenated_noisy - self.y_hat_concatenated[:,i]))
+                consensus_tot = self.gamma*np.dot(np.linalg.inv(self.M), np.dot(-Laplacien_m, x_hat_concatenated[:, i]))
+            
             elif type_observer == "super twisting":
                 diff_output = np.tanh(20*(y_concatenated_noisy - self.y_hat_concatenated[:,i]))*np.abs(y_concatenated_noisy - self.y_hat_concatenated[:,i])**(4) + 0*w
                 w += self.step*10*np.tanh(10*(y_concatenated_noisy - self.y_hat_concatenated[:,i]))
+                consensus_tot = self.gamma*np.dot(np.linalg.inv(self.M), np.dot(-Laplacien_m, x_hat_concatenated[:, i]))
+            
+            elif type_observer == "DFTO" and self.multi_agent_system.type == "MultiAgentGroups":
+                self.gamma = -0.02
+                gamma_i = (1+self.gamma)/(1 + (self.multi_agent_system.size_plant - 1)*self.gamma)
+                beta = 1 + self.gamma
+
+                diff_output = np.sign((y_concatenated_noisy - self.y_hat_concatenated[:,i]))*np.abs(y_concatenated_noisy - self.y_hat_concatenated[:,i])**(gamma_i)
+                
+                consensus = 0
+                for l in range(self.multi_agent_system.nbr_agent):
+                    for neighbor in np.where(self.multi_agent_system.graph.Adj[l,:]>0)[0]:
+                        consensus += np.sign((self.x_hat[l,:, i+1] - self.x_hat[neighbor,:, i+1]))*(np.abs(self.x_hat[l,:, i+1] - self.x_hat[neighbor,:, i+1]))**(beta)
+                
+                consensus_tot = np.ndarray.flatten(np.array([consensus for _ in range(self.multi_agent_system.nbr_agent)]))
+                
             else: 
                 raise Exception("This type of observer doesn't exist, the existing types are: output error, sliding mode sign and sliding mode tanh")
 
-            x_hat_concatenated[:,i+1] = self.step*np.dot(self.A_sys_noisy_concatenated - np.dot(self.B_sys_concatenated, K_sys_concatenated), x_hat_concatenated[:,i]) + self.step*np.reshape(np.dot(self.B_sys_concatenated, u_concatenated[:,i]), (-1, )) + x_hat_concatenated[:,i]  + self.step*np.dot(self.L, diff_output) + self.step*self.gamma*np.dot(np.dot(np.linalg.inv(self.M), -Laplacien_m), x_hat_concatenated[:, i])
+            x_hat_concatenated[:,i+1] = self.step*np.dot(self.A_sys_noisy_concatenated - np.dot(self.B_sys_concatenated, K_sys_concatenated), x_hat_concatenated[:,i]) + self.step*np.reshape(np.dot(self.B_sys_concatenated, u_concatenated[:,i]), (-1, )) + x_hat_concatenated[:,i]  + self.step*np.dot(self.L, diff_output) + self.step*consensus_tot
 
             # else: 
             if (i>lost_connexion[1]/self.step and i<lost_connexion[2]/self.step):
@@ -322,7 +355,7 @@ class ObserverDesign:
 
         plt.grid()
         if saveFile != None:
-            plt.savefig(saveFile  + "StateAndEstimate" + str(self.std_percent) + ".png", dpi=150)
+            plt.savefig(saveFile  + "StateAndEstimate" + "param" + str(self.std_noise_parameters*100) + "sensor" + str(self.std_noise_sensor) + ".png", dpi=150)
             plt.close()
         else:
             plt.show()
@@ -340,7 +373,7 @@ class ObserverDesign:
 
         plt.grid()
         if saveFile != None:
-            plt.savefig(saveFile + "k_adapt" + str(self.std_percent) + ".png", dpi=150)
+            plt.savefig(saveFile + "k_adapt" + "param" + str(self.std_noise_parameters*100) + "sensor" + str(self.std_noise_sensor) + ".png", dpi=150)
             plt.close()
         else:
             plt.show()
@@ -361,7 +394,7 @@ class ObserverDesign:
         plt.grid()
         plt.title("observation error")
         if saveFile != None:
-            plt.savefig(saveFile  + "ObsvError2" + str(self.std_percent) + ".png", dpi=150)
+            plt.savefig(saveFile  + "ObsvError2" + "param" + str(self.std_noise_parameters*100) + "sensor" + str(self.std_noise_sensor) + ".png", dpi=150)
             plt.close()
         else:
             plt.show()
@@ -383,7 +416,7 @@ class ObserverDesign:
 
         plt.grid()
         if saveFile != None:
-            plt.savefig(saveFile  + "obsvError"+ str(self.std_percent) + ".png", dpi=150)
+            plt.savefig(saveFile  + "obsvError"+ "param" + str(self.std_noise_parameters*100) + "sensor" + str(self.std_noise_sensor) + ".png", dpi=150)
             plt.close()
         else:
             plt.show()

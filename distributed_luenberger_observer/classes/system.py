@@ -12,7 +12,7 @@ class MultiAgentSystem:
     """
     step = 0.01  # The precision of time
 
-    def __init__(self, A_plant, B_plant, tuple_output_matrix, graph):
+    def __init__(self, A_plant, B_plant, tuple_output_matrix, graph, form = "normal"):
         """ 
         Arguments:
             A_plant: the state space matrix of the entire plant.
@@ -28,7 +28,7 @@ class MultiAgentSystem:
         self.tuple_output_matrix = tuple_output_matrix
         self.A_plant_noisy = np.array(self.A_plant)
         self.A_plant_stabilized = np.array(self.A_plant)
-        self.form = "normal" # The form in which the matrix was written
+        self.form = form # The form in which the matrix was written
         self.type = "MultiAgentSystem"
         self.graph = graph
         self.nbr_agent = self.graph.nbr_agent
@@ -237,10 +237,10 @@ class MultiAgentSystem:
         """
         if self.form == "standard":
             self.A_plant_noisy = np.array(self.A_plant)
-            self.A_plant_noisy[-1] = np.random.normal(np.mean(self.A_plant[-1]), std_noise, np.shape(self.A_plant[-1]))
+            self.A_plant_noisy[-1] += np.random.normal(0, std_noise*np.abs(np.mean(self.A_plant[-1])), np.shape(self.A_plant[-1]))
         else:
             self.A_plant_noisy = np.array(self.A_plant)
-            self.A_plant_noisy += np.random.normal(0, std_noise, np.shape(self.A_plant))
+            self.A_plant_noisy += np.random.normal(0, std_noise*np.abs(np.mean(self.A_plant[self.A_plant>0])), np.shape(self.A_plant))
             self.A_plant_noisy[np.where(self.A_plant == 0)] = 0
         
         return self.A_plant_noisy
