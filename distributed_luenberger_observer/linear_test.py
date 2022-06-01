@@ -26,20 +26,20 @@ print(G.Adj)
 #                  [0, -2, 0],
 #                  [0, 0, -3]])
 
-A_sys = np.array([[0, 1, 0, 0],
-                  [0, 0, 1, 0],
-                  [0, 0, 0, 1],
-                  [-1, -9, -26, -24]])
+# A_sys = np.array([[0, 1, 0, 0],
+#                   [0, 0, 1, 0],
+#                   [0, 0, 0, 1],
+#                   [-1, -9, -26, -24]])
 
 # A_sys = np.array([[0, 1, 0, 0],
 #                   [0, 0, 1, 0],
 #                   [0, 0, 0, 1],
 #                   [-1, -9, -26, -24]])
 
-# A_sys = np.array([[-2, -1, 0, 0],
-#                   [0, -1, 0, 0],
-#                   [0, -1, -1.5, 0],
-#                   [0, 0, 0, -2.3]])
+A_sys = np.array([[-2, -1, 0, 0],
+                  [0, -1, 0, 0],
+                  [0, -1, -1.5, 0],
+                  [0, 0, 0, -2.3]])
 
 # std = std_percent*np.abs(np.mean(A_sys))
 
@@ -56,8 +56,8 @@ B_sys = np.array([[0, 0], [1, 0], [0, 0], [0, 1]])
 # C3 = np.array([[1, 1, 1]])
 # C4 = np.array([[1, 0, 1]])
 
-C1 = np.array([[0, 0, 0, 1]])
-C2 = np.array([[0, 0, 0, 1]])
+C1 = np.array([[1, 1, 1, 1]])
+C2 = np.array([[1, 1, 1, 1]])
 # C3 = np.array([[0, 0, 1, 0]])
 # C4 = np.array([[0, 0, 0, 1]])
 
@@ -103,7 +103,7 @@ observer = ObserverDesign(multi_agent_system= MA,
 # observer.feedback_control_with_observer(feedback_gain= K_sys)
 # observer.feedback_control_with_observer(desired_eig= -np.random.uniform(2, 5, np.shape(A_sys)[0]*nbr_agent))
 
-observer.run_observer(type_observer = "DFTO", lost_connexion= [[], 2, 4])
+observer.run_observer(type_observer = "output error", lost_connexion= [[], 2, 4])
 
 observer.plot_states()
 observer.plot_criateria()
