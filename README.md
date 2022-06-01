@@ -5,7 +5,7 @@ The distributed_luenberger_observer file contains classes and functions for:
 <dl>
 <dd>Defining the graph of a multi-agent system and applying changes to it.</dd>
 <dd>Defining and simulating a multi-agent system.</dd>
-<dd>Estimating the states of a multi-agent system using the Distributed Luenberger Observer [1].</dd>
+<dd>Estimating the states of a multi-agent system using the Distributed Luenberger Observer [1] and the Distributed Finite-Time Observer [2].</dd>
 <dd>Define the State Space of a quadrotor (linearized).</dd>
 </dl>
 
@@ -13,3 +13,8 @@ The distributed_luenberger_observer file contains classes and functions for:
 [1] Taekyoo Kim, Hyungbo Shim, and Dongil Dan Cho. Distributed luenberger observer design.
 In 2016 IEEE 55th Conference on Decision and Control (CDC), pages 6928–6933. IEEE,
 2016
+
+[2] Haik Silm, Rosane Ushirobira, Denis Efimov, Jean-Pierre Richard, and Wim Michiels.
+A note on distributed finite-time observers. IEEE Transactions on Automatic Control,
+64(2):759–766, 2018.
+20
