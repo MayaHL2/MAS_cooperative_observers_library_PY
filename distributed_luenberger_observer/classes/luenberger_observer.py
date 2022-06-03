@@ -23,7 +23,7 @@ class ObserverDesign:
 
     """
     step = 0.01 # The precision of time
-    def __init__(self, multi_agent_system, x0, gamma, k0, t_max = None, input = "step", std_noise_parameters = 0, std_noise_sensor = 0, std_noise_relative_sensor = 0):
+    def __init__(self, multi_agent_system, x0, gamma, k0, x_hat_0 = None, t_max = None, input = "step", std_noise_parameters = 0, std_noise_sensor = 0, std_noise_relative_sensor = 0):
         """ 
         Arguments:
             multi_agent_system: a MultiAgentSystem object for which 
@@ -76,7 +76,10 @@ class ObserverDesign:
         self.x[:, 0] = np.transpose(x0)
 
         self.x_hat = np.zeros((self.multi_agent_system.nbr_agent, self.multi_agent_system.size_plant, nbr_step))
-        self.x_hat[:, : , 0] = np.random.uniform(-3, 3, (self.multi_agent_system.nbr_agent, self.multi_agent_system.size_plant))
+        if np.all(x_hat_0 == None):
+            self.x_hat[:, : , 0] = np.random.uniform(-3, 3, (self.multi_agent_system.nbr_agent, self.multi_agent_system.size_plant))
+        else:
+            self.x_hat[:, : , 0] = x_hat_0
 
         self.y = np.zeros((np.shape(self.C_sys_concatenated)[0], nbr_step))
         self.y_concatenated = np.zeros((np.shape(self.C_sys_concatenated)[0], nbr_step))
@@ -205,8 +208,8 @@ class ObserverDesign:
         x_hat_concatenated = np.reshape(self.x_hat, (self.multi_agent_system.nbr_agent*self.multi_agent_system.size_plant, nbr_step))
         u_concatenated = np.reshape(np.array([self.u_sys for _ in range(self.multi_agent_system.nbr_agent)]), (np.shape(self.B_sys_concatenated )[1], -1))
         K_sys_concatenated = np.kron(np.eye(self.multi_agent_system.nbr_agent), self.K_sys)
-        k_adapt = np.ones((self.multi_agent_system.nbr_agent, nbr_step))
-        k_adapt[:, 0] = self.k0
+        self.k_adapt = np.ones((self.multi_agent_system.nbr_agent, nbr_step))
+        self.k_adapt[:, 0] = self.k0
         first = True
 
         beta = 1
@@ -232,7 +235,6 @@ class ObserverDesign:
                     print(i*self.step, "s")
                     self.t_response = i*self.step
                     if self.t_max == None:
-                        print("i am returning")
                         self.t_max = i*self.step
                         nbr_step = int(self.t_max/self.step) 
                         self.x_hat = self.x_hat[:, : , :nbr_step]
@@ -257,8 +259,7 @@ class ObserverDesign:
                 w += self.step*10*np.tanh(10*(y_concatenated_noisy - self.y_hat_concatenated[:,i]))
                 consensus_tot = self.gamma*np.dot(np.linalg.inv(self.M), np.dot(-Laplacien_m, x_hat_concatenated[:, i]))
             
-            elif type_observer == "DFTO" and self.multi_agent_system.type == "MultiAgentGroups":
-                self.gamma = -0.02
+            elif type_observer == "DFTO":
                 gamma_i = (1+self.gamma)/(1 + (self.multi_agent_system.size_plant - 1)*self.gamma)
                 beta = 1 + self.gamma
 
@@ -272,11 +273,10 @@ class ObserverDesign:
                 consensus_tot = np.ndarray.flatten(np.array([consensus for _ in range(self.multi_agent_system.nbr_agent)]))
                 
             else: 
-                raise Exception("This type of observer doesn't exist, the existing types are: output error, sliding mode sign and sliding mode tanh")
+                raise Exception("This type of observer doesn't exist, the existing types are: output error, DFTO, sliding mode sign and sliding mode tanh")
 
             x_hat_concatenated[:,i+1] = self.step*np.dot(self.A_sys_noisy_concatenated - np.dot(self.B_sys_concatenated, K_sys_concatenated), x_hat_concatenated[:,i]) + self.step*np.reshape(np.dot(self.B_sys_concatenated, u_concatenated[:,i]), (-1, )) + x_hat_concatenated[:,i]  + self.step*np.dot(self.L, diff_output) + self.step*consensus_tot
 
-            # else: 
             if (i>lost_connexion[1]/self.step and i<lost_connexion[2]/self.step):
                 for agent in lost_connexion[0]:
                     min_i = int(agent*self.multi_agent_system.A_plant.shape[0])
@@ -297,9 +297,9 @@ class ObserverDesign:
             self.obsv_error_2[:, i+1] = self.obsv_error_2[:, i] + self.step*(self.y_concatenated[:, i] - self.y_hat_concatenated[:, i])**2
 
             for ind in range(self.multi_agent_system.nbr_agent):
-                k_adapt[ind,i+1] = k_adapt[ind,i] + self.step*np.linalg.norm(np.dot(self.multi_agent_system.graph.Lap[ind],(self.x_hat[:,:, i+1] - self.x_hat[ind,:, i+1])**2), 2)
+                self.k_adapt[ind,i+1] = self.k_adapt[ind,i] + self.step*np.linalg.norm(np.dot(self.multi_agent_system.graph.Lap[ind],(self.x_hat[:,:, i+1] - self.x_hat[ind,:, i+1])**2), 2)
                 size_obsv = np.linalg.matrix_rank(obsv(self.multi_agent_system.A_plant, self.multi_agent_system.tuple_output_matrix[ind]))
-                self.M_dict[str(ind)] = Mi(self.T[str(ind)], k_adapt[ind, i+1], self.Md[str(ind)], np.shape(self.multi_agent_system.A_plant)[0] - size_obsv)
+                self.M_dict[str(ind)] = Mi(self.T[str(ind)], self.k_adapt[ind, i+1], self.Md[str(ind)], np.shape(self.multi_agent_system.A_plant)[0] - size_obsv)
                 self.L_dict[str(ind)] = Li(self.T[str(ind)], self.Ld[str(ind)].T,  np.shape(self.multi_agent_system.A_plant)[0] - size_obsv)
 
             self.M = [v for v in self.M_dict.values()]
@@ -309,8 +309,7 @@ class ObserverDesign:
             self.L = diag(self.L)
 
 
-        self.k_adapt = k_adapt
-        print("k", k_adapt[:, i])
+        print("k", self.k_adapt[:, i])
         
         return 0, 0
 
@@ -347,6 +346,7 @@ class ObserverDesign:
         """
         for j in range(self.x.shape[0]):
 
+
             plt.plot(np.arange(0,self.t_max, self.step), np.transpose(self.x_hat[:, j,:]), color[j%len(color)])    
             plt.plot(np.arange(0,self.t_max, self.step), np.transpose(self.x[j,:]), c ="#1E7DF0", ls = "dashed")
 
@@ -368,12 +368,13 @@ class ObserverDesign:
         Returns:
             None
         """
+        nbr_step = int(self.t_max/self.step) if self.t_max != None else 10000
         for ind in range(self.multi_agent_system.nbr_agent):
-            plt.plot(np.arange(0,self.t_max, self.step), np.transpose(self.k_adapt[ind,:]), label = "k("+ str(ind+1)+")")   
+            plt.plot(np.arange(0,self.t_max, self.step), np.transpose(self.k_adapt[ind,: nbr_step]), label = "k("+ str(ind+1)+")")   
 
         plt.grid()
         if saveFile != None:
-            plt.savefig(saveFile + "k_adapt" + "param" + str(self.std_noise_parameters*100) + "sensor" + str(self.std_noise_sensor) + ".png", dpi=150)
+            plt.savefig(saveFile + "self.k_adapt" + "param" + str(self.std_noise_parameters*100) + "sensor" + str(self.std_noise_sensor) + ".png", dpi=150)
             plt.close()
         else:
             plt.show()
@@ -390,7 +391,7 @@ class ObserverDesign:
         nbr_step = int(self.t_max/self.step) if self.t_max != None else 10000
 
         print("obsv error", self.obsv_error_2[:, nbr_step-1])
-        plt.plot(np.arange(0,self.t_max, self.step), np.transpose(self.obsv_error_2)) 
+        plt.plot(np.arange(0,self.t_max, self.step), np.transpose(self.obsv_error_2[:, :nbr_step])) 
         plt.grid()
         plt.title("observation error")
         if saveFile != None:
