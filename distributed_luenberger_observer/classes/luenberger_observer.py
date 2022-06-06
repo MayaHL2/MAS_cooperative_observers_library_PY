@@ -231,7 +231,8 @@ class ObserverDesign:
             y_concatenated_noisy = self.add_sensors_noises(self.y_concatenated[:, i]) 
 
             if i> 20:
-                if np.allclose(self.y_concatenated[:, i-20:i] - self.y_hat_concatenated[:,i-20:i], 0, atol= tol_t_response) and first and i != 0:
+                if np.allclose(np.sum(self.y_hat_concatenated[:,i-20:i], axis = 1)/20 - np.max(self.y_hat_concatenated[:,i-20:i], axis = 1), 0, atol= tol_t_response) and first and i != 0:
+                # if np.allclose(self.y_concatenated[:, i-20:i] - self.y_hat_concatenated[:,i-20:i], 0, atol= tol_t_response) and first and i != 0:
                     print(i*self.step, "s")
                     self.t_response = i*self.step
                     if self.t_max == None:
@@ -239,6 +240,8 @@ class ObserverDesign:
                         nbr_step = int(self.t_max/self.step) 
                         self.x_hat = self.x_hat[:, : , :nbr_step]
                         self.x = self.x[: , :nbr_step]
+
+                        self.static_error = np.abs(self.y_concatenated[:, i] - self.y_hat_concatenated[:,i])
                         return np.mean(self.x_hat, axis= 0)[:, -1], i*self.step
                     first = False
 

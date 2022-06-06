@@ -31,38 +31,50 @@ print("obsv index", MA.obsv_index())
 # MA.step_response(10)
 
 t_response = list([])
+static_error = list([])
 
-# for k in range(100):
+for k in range(1):
 
-observer = ObserverDesign(multi_agent_system= MA, 
-                            t_max= 10, 
-                            x0= np.ones(A_sys.shape[0]),
-                            x_hat_0= [[-1, 2], [0.5, -1.3]],
-                            gamma= 6, 
-                            k0= np.ones(nbr_agent),
-                            std_noise_parameters= 0.1,
-                            std_noise_sensor= 0,
-                            std_noise_relative_sensor = 0)
+    observer = ObserverDesign(multi_agent_system= MA, 
+                                t_max= 10, 
+                                x0= np.ones(A_sys.shape[0]),
+                                x_hat_0= [[-1, 2], [0.5, -1.3]],
+                                gamma= 6, 
+                                k0= np.ones(nbr_agent),
+                                std_noise_parameters= 0,
+                                std_noise_sensor= 1,
+                                std_noise_relative_sensor = 0)
 
 
-observer.run_observer(type_observer = "output error", lost_connexion= [[], 2, 4], tol_t_response= 10**(-1))
-t_response = t_response + [observer.t_max]
+    observer.run_observer(type_observer = "DFTO", lost_connexion= [[], 2, 4], tol_t_response= 10**(-2))
+    # if observer.t_max == None:
+    #     break
+    # t_response = t_response + [observer.t_max]
+    # static_error = static_error + [observer.static_error]
 
-# observer.plot_states(saveFile = "image/plant/stable/DFTO/")
-# observer.plot_criateria(saveFile = "image/plant/stable/DFTO/")
-# observer.plot_k(saveFile = "image/plant/stable/DFTO/")
+observer.plot_states(saveFile = "image/plant/stable/DFTO/")
+# observer.plot_criateria(saveFile = "image/plant/stable/DLO/")
+# observer.plot_k(saveFile = "image/plant/stable/DLO/")
 
-observer.plot_states()
-observer.plot_criateria()
-observer.plot_k()
+# observer.plot_states()
+# observer.plot_criateria()
+# observer.plot_k()
 
 
 # print(time.time()- start)
 
 # print(t_response)
+# print(static_error)
 
-# plt.plot(np.arange(0,100), t_response)    
+# plt.plot(np.arange(0,np.size(t_response)), t_response)    
 
-# plt.title("The response time to a step")
+# plt.title("The response time to a step versus parametric noise")
+# plt.grid()
+# plt.show()
+
+
+# plt.plot(np.arange(0,np.shape(static_error)[0]), static_error)    
+
+# plt.title("Static error versus parametric noise")
 # plt.grid()
 # plt.show()
