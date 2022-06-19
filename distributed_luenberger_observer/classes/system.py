@@ -398,7 +398,7 @@ class MultiAgentGroups(MultiAgentSystem):
                 
                 # We only need 1 and 0 in the observable states that we need to add 
                 # because having real values can consume a lot of memory and it is 
-                #  not necessary
+                # not necessary
                 added_obs_states = np.float16(np.logical_or(added_obs_states> 10**(-6), added_obs_states<- 10**(-6))) 
 
                 
@@ -440,5 +440,71 @@ class MultiAgentGroups(MultiAgentSystem):
         print("B\n", self.B_plant)
         print("")
         print("C\n", np.row_stack(self.tuple_output_matrix))
+
+
+
+class HeterogeneousMultiAgentGroups(MultiAgentGroups):
+    """ This class inherits from the multi agent groups
+    class, it creates a heterogeneous multi agent system
+    """
+    step = 0.01  # The precision of time
+    def __init__(self, tuple_A_agents, tuple_B_agents, tuple_output_matrix, graph):
+        """ 
+        Arguments:
+            A_agent: the state space matrix of an agent of the plant
+            B_plant: the input matrix of an agent of the plant
+            tuple_output_matrix: a tuple or a dictionnary containing 
+            the output matrices of each agent.
+        Returns:
+            None
+        """
+        self.nbr_agent = graph.nbr_agent
+        self.A_plant = diag(tuple_A_agents)
+        self.tuple_A_agents = tuple_A_agents
+        self.size_plant = np.shape(self.A_plant)[0]
+        self.B_plant = diag(tuple_B_agents)
+        self.tuple_B_agents = tuple_B_agents
+        self.tuple_output_matrix = tuple_output_matrix
+        
+        self.A_plant_noisy = np.array(self.A_plant)
+        self.A_plant_stabilized = np.array(self.A_plant)  
+
+        self.form = "normal" 
+        self.type = "HeterogeneousMultiAgentGroups"
+
+        self.graph = graph
+
+        B_plant_list = list([])
+        A_plant_list = list([])
+        self.MAS_list = list([])
+        self.agent_in_neighborhood = list([])
+        self.main_system_list = list([])
+        for i in range(self.nbr_agent):
+            tuple_A = list([])
+            tuple_B = list([])
+            self.size_agents = list([])
+            self.main_system_list.append((self.tuple_A_agents[i], self.tuple_B_agents[i], self.tuple_output_matrix[i][i]))
+            for v in np.where((self.graph.Adj[i,:] + np.eye(self.nbr_agent)[i])>0)[0]:
+                tuple_A.append(self.tuple_A_agents[v])
+                tuple_B.append(self.tuple_B_agents[v])
+                
+                self.size_agents.append(self.tuple_A_agents[v].shape[0])
+
+            A_plant_list.append(diag(np.array(self.tuple_A_agents)[np.where((self.graph.Adj[i,:] + np.eye(self.nbr_agent)[i])>0)[0]]))
+            B_plant_list.append(diag(np.array(self.tuple_B_agents)[np.where((self.graph.Adj[i,:] + np.eye(self.nbr_agent)[i])>0)[0]]))
+            C_plants = list([])
+            for v in range(np.shape(np.array(self.tuple_output_matrix[i])[np.where((self.graph.Adj[i,:] + np.eye(self.nbr_agent)[i])>0)[0]])[1]):
+                C_plants.append(np.ndarray.flatten(np.array(self.tuple_output_matrix[i])[np.where((self.graph.Adj[i,:] + np.eye(self.nbr_agent)[i])>0)[0]][:, v, :]))
+
+            neighborhood = np.where((self.graph.Adj[i,:] + np.eye(self.nbr_agent)[i])>0)[0]
+            self.agent_in_neighborhood.append(neighborhood)
+
+            A_plant_list.append(diag(tuple_A))
+            B_plant_list.append(diag(tuple_B))
+            C_plants = np.row_stack(C_plants)
+
+            self.MAS_list.append(MultiAgentSystem(diag(tuple_A), diag(tuple_B), C_plants, self.graph.find_sub_graph(neighborhood)))
+
+
 
 # controllability/ consensus

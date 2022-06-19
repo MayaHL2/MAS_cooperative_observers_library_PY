@@ -77,7 +77,7 @@ class ObserverDesign:
 
         self.x_hat = np.zeros((self.multi_agent_system.nbr_agent, self.multi_agent_system.size_plant, nbr_step))
         if np.all(x_hat_0 == None):
-            self.x_hat[:, : , 0] = np.random.uniform(-3, 3, (self.multi_agent_system.nbr_agent, self.multi_agent_system.size_plant))
+            self.x_hat[:, : , 0] = np.random.uniform(-10, 10, (self.multi_agent_system.nbr_agent, self.multi_agent_system.size_plant))
         else:
             self.x_hat[:, : , 0] = x_hat_0
 
@@ -85,6 +85,13 @@ class ObserverDesign:
         self.y_concatenated = np.zeros((np.shape(self.C_sys_concatenated)[0], nbr_step))
         self.y_hat = np.zeros((self.multi_agent_system.nbr_agent, np.shape(self.C_sys_concatenated)[0], nbr_step))
         self.y_hat_concatenated = np.zeros((np.shape(self.C_sys_concatenated)[0], nbr_step))
+
+
+        t = np.arange(0, t_max, self.step)
+
+        x_ = np.array([0.4*t, 0.4*np.sin(np.pi*t), 0.6*np.cos(np.pi*t)])
+        p0 = np.array([np.cos(0.2*np.pi*t), np.sin(0.2*np.pi*t), np.zeros(np.max(np.shape(t),))]) + x_
+        angles_ = np.arccos(p0/np.sqrt(np.sum(p0**2, axis= 0)))
 
         if input == "step":
             self.u_sys = np.ones((np.shape(self.multi_agent_system.B_plant)[1], nbr_step))
@@ -96,7 +103,7 @@ class ObserverDesign:
             self.u_sys = np.zeros((np.shape(self.multi_agent_system.B_plant)[1], nbr_step))
         else:
             self.u_sys = np.expand_dims(np.random.rand(np.shape(self.multi_agent_system.B_plant)[1]), axis = 1)*np.ones((np.shape(self.multi_agent_system.B_plant)[1], nbr_step))
-           
+
     def parameters(self):
         """ This function choses the right parameters to ensure the
         convergence of the observer
@@ -223,7 +230,7 @@ class ObserverDesign:
 
         for i in range(nbr_step-1):
 
-            self.x[:,i+1] = self.step*np.dot(self.multi_agent_system.A_plant, self.x[ :,i]) - self.step*np.dot(np.dot(self.multi_agent_system.B_plant, self.K_sys), self.x_hat[0,:,i]) + self.step*np.reshape(np.dot(self.multi_agent_system.B_plant, self.u_sys[:,i]), (-1,)) + self.x[:,i] 
+            self.x[:,i+1] = self.step*np.dot(self.multi_agent_system.A_plant, self.x[ :,i]) - self.step*np.dot(np.dot(self.multi_agent_system.B_plant, self.K_sys), np.mean(self.x_hat[:,:,i], axis =0)) + self.step*np.reshape(np.dot(self.multi_agent_system.B_plant, self.u_sys[:,i]), (-1,)) + self.x[:,i] 
             x_concatenated = np.array([self.x[:, i] for _ in range(self.multi_agent_system.nbr_agent)])
             x_concatenated = np.reshape(x_concatenated, (np.shape(x_concatenated)[0]*np.shape(x_concatenated)[1], ))
             self.y_concatenated[:, i+1] = np.dot(self.C_sys_concatenated, x_concatenated)
@@ -353,7 +360,7 @@ class ObserverDesign:
             plt.plot(np.arange(0,self.t_max, self.step), np.transpose(self.x_hat[:, j,:]), color[j%len(color)])    
             plt.plot(np.arange(0,self.t_max, self.step), np.transpose(self.x[j,:]), c ="#1E7DF0", ls = "dashed")
 
-            plt.title("Step response")
+            # plt.title("Step response")
 
 
         plt.grid()
@@ -396,7 +403,7 @@ class ObserverDesign:
         print("obsv error", self.obsv_error_2[:, nbr_step-1])
         plt.plot(np.arange(0,self.t_max, self.step), np.transpose(self.obsv_error_2[:, :nbr_step])) 
         plt.grid()
-        plt.title("observation error")
+        # plt.title("observation error")
         if saveFile != None:
             plt.savefig(saveFile  + "ObsvError2" + "param" + str(self.std_noise_parameters*100) + "sensor" + str(self.std_noise_sensor) + ".png", dpi=150)
             plt.close()
@@ -414,8 +421,8 @@ class ObserverDesign:
             None
         """
         for j in range(self.x.shape[0]):
-            plt.plot(np.arange(0,self.t_max, self.step), np.transpose(self.x[j,:]-self.x_hat[:,j,:]), color[j]) 
-            plt.title("Observation error y - y_estimate")
+            plt.plot(np.arange(0,self.t_max, self.step), np.transpose(self.x[j,:]-self.x_hat[:,j,:]), color[j%len(color)]) 
+            # plt.title("Observation error y - y_estimate")
 
 
         plt.grid()
@@ -423,4 +430,69 @@ class ObserverDesign:
             plt.savefig(saveFile  + "obsvError"+ "param" + str(self.std_noise_parameters*100) + "sensor" + str(self.std_noise_sensor) + ".png", dpi=150)
             plt.close()
         else:
+            plt.show()
+
+
+class CooperativeObserverDesign(ObserverDesign):
+    step = 0.01 # The precision of time
+    # THIS ONLY WORKS FOR SYSTEMS WITH SAME SIZES
+    def __init__(self, heterogeneous_MAS, x0, gamma, k0, x_hat_0 = None, t_max = None, input = "step", std_noise_parameters = 0, std_noise_sensor = 0, std_noise_relative_sensor = 0):
+    
+        np.random.seed(0)
+
+        self.heterogeanous_MAS = heterogeneous_MAS
+        self.MAS_list = heterogeneous_MAS.MAS_list
+
+        self.std_noise_parameters = std_noise_parameters
+        self.std_noise_sensor = std_noise_sensor
+        self.std_noise_relative_sensor = std_noise_relative_sensor
+        self.gamma = gamma
+        self.k0 = k0
+        self.t_max = t_max
+        self.t_response = None
+
+        nbr_step = int(self.t_max/self.step) if t_max != None else 10000
+        
+        self.x_list = list([])
+        self.x_hat_list = list([])
+        self.x_hat_flat_list = list([])
+
+        self.y_list = list([])
+        self.y_hat_list = list([])
+        self.y_hat_flat_list = list([])
+
+        for i in range(len(self.heterogeanous_MAS.agent_in_neighborhood)):
+            self.x_list.append(np.zeros((self.heterogeanous_MAS.main_system_list[i][0].shape[0], nbr_step)))
+            self.x_hat_list.append(np.zeros((len(self.heterogeanous_MAS.agent_in_neighborhood[i]), self.heterogeanous_MAS.main_system_list[i][0].shape[0], nbr_step)))
+            self.x_hat_flat_list.append(np.zeros((len(self.heterogeanous_MAS.agent_in_neighborhood[i])*self.heterogeanous_MAS.main_system_list[i][0].shape[0], nbr_step)))
+
+            self.y_list.append(np.zeros((self.heterogeanous_MAS.main_system_list[i][2].shape[0], nbr_step)))
+            self.y_hat_list.append(np.zeros((len(self.heterogeanous_MAS.agent_in_neighborhood[i]),self.heterogeanous_MAS.main_system_list[i][2].shape[0], nbr_step)))
+            self.y_hat_flat_list.append(np.zeros((len(self.heterogeanous_MAS.agent_in_neighborhood[i]),self.heterogeanous_MAS.main_system_list[i][2].shape[0], nbr_step)))
+
+   
+    def run_observer(self, type_observer = "output error", lost_connexion = None, tol_t_response = 10**(-2)):
+
+        nbr_step = int(self.t_max/self.step) if self.t_max != None else 10000
+
+        for k in range(len(self.heterogeanous_MAS.agent_in_neighborhood)):
+            for i in range(nbr_step-1):
+                self.x_list[k][:, i+1] = self.step*np.dot(self.heterogeanous_MAS.main_system_list[k][0], self.x_list[k][ :,i]) - 0 + self.step*np.reshape(np.dot(self.heterogeanous_MAS.main_system_list[k][1], np.ones((self.heterogeanous_MAS.main_system_list[k][1].shape[1], 1))), (-1,)) + self.x_list[k][:,i] 
+                x_concatenated = np.ndarray.flatten(np.array(self.x_list)[self.heterogeanous_MAS.agent_in_neighborhood[k]][:, :, i+1])
+                self.y_list[k][:, i+1] = np.dot(self.MAS_list[k].tuple_output_matrix, x_concatenated)
+        
+                L = np.ones((self.x_hat_flat_list[k][:, i+1].shape[0], self.y_list[k][:, i+1].shape[0]))
+                K = 0.1*np.ones((self.x_hat_flat_list[k][:, i+1].shape[0], self.x_hat_flat_list[0][0:self.heterogeanous_MAS.main_system_list[0][0].shape[0], i].shape[0]))
+                sum_consensus = 0
+                for l in range(len(self.heterogeanous_MAS.agent_in_neighborhood)):
+                    if k in self.heterogeanous_MAS.agent_in_neighborhood[l] and k!= l:
+                        ind = np.where(self.heterogeanous_MAS.agent_in_neighborhood[l] == k)[0][0]
+                        sum_consensus += self.x_hat_flat_list[l][ind*(self.heterogeanous_MAS.main_system_list[k][0]).shape[0]:(ind+1)*self.heterogeanous_MAS.main_system_list[k][0].shape[0], i] - self.x_hat_flat_list[l][k*(self.heterogeanous_MAS.main_system_list[k][0]).shape[0]:(k+1)*self.heterogeanous_MAS.main_system_list[k][0].shape[0], i]
+                
+            
+                self.x_hat_flat_list[k][:, i+1] = self.step*np.dot(self.MAS_list[k].A_plant, self.x_hat_flat_list[k][ :,i]) - 0 + self.step*np.reshape(np.dot(self.MAS_list[k].B_plant, np.ones((self.MAS_list[k].B_plant.shape[1], 1))), (-1,)) + np.dot(L, (self.y_list[k][:, i] - np.dot(self.MAS_list[k].tuple_output_matrix, self.x_hat_flat_list[k][:, i]))) +  np.dot(K, sum_consensus) + self.x_hat_flat_list[k][:,i] 
+
+            plt.plot(np.arange(0, self.t_max, self.step), np.transpose(self.y_list[k]))
+            plt.plot(np.arange(0, self.t_max, self.step), np.transpose(self.x_hat_flat_list[k]))
+            plt.grid()
             plt.show()

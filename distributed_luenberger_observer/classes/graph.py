@@ -117,9 +117,9 @@ class Graph:
 
     def find_minimal_connected_faulty_graph(self, faulty_nodes, faulty_graph_connected):
         """ This is a recursive function to find for a given node from the
-        faulty nodes, finds the other nodes that it needs to be connected
-        to in order to obtain a minimal connected graph for which the 
-        system would be jointly observable. 
+        faulty nodes, the other nodes that it needs to be connected to in 
+        order to obtain a minimal connected graph for which the system 
+        would be jointly observable. 
         Arguments:
             faulty_nodes: the agents with faults.
             reachable: initialy, it would be the faulty agent for which we 
@@ -162,11 +162,14 @@ class Graph:
 
         # Add to the list the remaining agents splited as they are an observable
         # group on their own
-        list_groups_obsv = list_groups_obsv + np.split(np.setdiff1d(np.arange(self.nbr_agent),
-                                                reduce(np.union1d, (list_groups_obsv))), 
-                         len(np.setdiff1d(np.arange(self.nbr_agent), 
-                                        reduce(np.union1d, (list_groups_obsv))))
-                                    )
+
+        # PROBLEM when faulty<->nonfaulty<->faulty
+        if not(np.all(np.isin(np.arange(self.nbr_agent), list_groups_obsv))):
+            list_groups_obsv = list_groups_obsv + np.split(np.setdiff1d(np.arange(self.nbr_agent),
+                                                    reduce(np.union1d, (list_groups_obsv))), 
+                            len(np.setdiff1d(np.arange(self.nbr_agent), 
+                                            reduce(np.union1d, (list_groups_obsv))))
+                                        )
                             
         return list_groups_obsv
 
