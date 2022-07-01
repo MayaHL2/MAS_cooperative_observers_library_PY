@@ -36,7 +36,7 @@ while t_obs_sum < t_max:
     observer.parameters()
     observer.feedback_control_with_observer([-1, -1.5, -2, -0.5])
 
-    x, t_obs = observer.run_observer(type_observer = "output error")
+    x, t_obs = observer.run_observer(type_observer = "DLO")
     print(x, t_obs)
     t_obs_sum += t_obs
     observer.plot_states()

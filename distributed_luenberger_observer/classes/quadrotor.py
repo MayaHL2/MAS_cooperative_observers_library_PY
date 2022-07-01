@@ -21,7 +21,7 @@ class Quadrotor:
             None
         """
         self.A = np.array(
-            [[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+           [[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
             [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
@@ -51,12 +51,15 @@ class Quadrotor:
         )
 
         self.C = np.array(
-            [[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+           [[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]]
+            [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]]
         )
 
         self.C_faulty = np.array(self.C)
@@ -102,77 +105,87 @@ class Quadrotor:
             self.C_faulty[4, 4] = 0
         elif type == "psy":
             self.C_faulty[5, 5] = 0
+        elif type == "dx":
+            self.C_faulty[6, 6] = 0
+        elif type == "dy":
+            self.C_faulty[7, 7] = 0
+        elif type == "dz":
+            self.C_faulty[8, 8] = 0
         else:
             random = np.random.randint(0, 5)
             self.C_faulty[random, random] = 0
 
         return self.C_faulty
 
-    def draw_quadrotor(self, p, angles, t_max, step_UAV, distance_wings, color_path = "green", color_quadrotor = "#000000"):
-        
-        # fig = plt.figure()
-        
+    def draw_quadrotor(self, ax, p, angles, t_max, step_UAV, distance_wings, color_path = "green", color_quadrotor = "#000000"):        
         # syntax for 3-D projection
-        ax = plt.axes(projection ='3d')
-        # ax.set(xlim=(-np.max(p[0:3, :]), np.max(p[0:3, :])), ylim=(-np.max(p[0:3, :]), np.max(p[0:3, :])), zlim=(-np.max(p[0:3, :]), np.max(p[0:3, :])))
+        # ax = plt.axes(projection ='3d')
+        ax.set(xlim=(-np.max(-p[0:3, :]), np.max(p[0:3, :])), ylim=(-np.max(-p[0:3, :]), np.max(p[0:3, :])), zlim=(-np.max(-p[0:3, :]), np.max(p[0:3, :])))
            
         # plotting
         ax.plot3D(p[0, :], p[1, :], p[2,:], color_path)
+        # n = 4                   #number of elements
+        # print(( 2**np.arange(0, n, 1)-1 )*100)
+        # p_cg = p[:, (2**np.arange(0, n, 1)-1 )*100]
+        # angles_drone = angles[:,(2**np.arange(0, n, 1)-1 )*100]
 
         p_cg = p[:, np.arange(0, int(t_max/0.01), step_UAV)]
-        angles_drone = angles[:, np.arange(0, int(t_max/0.01), step_UAV)]
+        angles_drone = angles[:,np.arange(0, int(t_max/0.01), step_UAV)]
 
-        # distance_wings = np.max(p[0:3, :])/7
+        i = 0
 
-        p1 = list([p_cg[:, 0] + [distance_wings, 0, 0]])
-        p2 = list([p_cg[:, 0] + [-distance_wings, 0, 0]])
-        p3 = list([p_cg[:, 0] + [0, distance_wings, 0]])
-        p4 = list([p_cg[:, 0] + [0, -distance_wings, 0]])
+        r = R.from_euler('xyz', angles_drone[:, i]*180/np.pi, degrees = True)
+        r = r.as_matrix()
 
-        for i in range(1, int(t_max/(0.01*step_UAV))):
+        p1 = list([p_cg[:, 0] + np.dot(r,[distance_wings, 0, 0])])
+        p2 = list([p_cg[:, 0] + np.dot(r,[-distance_wings, 0, 0])])
+        p3 = list([p_cg[:, 0] + np.dot(r,[0, distance_wings, 0])])
+        p4 = list([p_cg[:, 0] + np.dot(r,[0, -distance_wings, 0])])
+
+        ax.scatter(np.array(p_cg)[0,i], np.array(p_cg)[1,i], np.array(p_cg)[2,i], color = color_quadrotor)
+
+        ax.plot([p_cg[0, i],  np.array(p1)[i,0]], [p_cg[1, i], np.array(p1)[i,1]], [p_cg[2, i], np.array(p1)[i,2]], color = color_quadrotor, linewidth = 5)
+        ax.plot([p_cg[0, i],  np.array(p2)[i,0]], [p_cg[1, i], np.array(p2)[i,1]], [p_cg[2, i], np.array(p2)[i,2]], color = color_quadrotor, linewidth = 5)
+        ax.plot([p_cg[0, i],  np.array(p3)[i,0]], [p_cg[1, i], np.array(p3)[i,1]], [p_cg[2, i], np.array(p3)[i,2]], color = color_quadrotor, linewidth = 5)
+        ax.plot([p_cg[0, i],  np.array(p4)[i,0]], [p_cg[1, i], np.array(p4)[i,1]], [p_cg[2, i], np.array(p4)[i,2]], color = color_quadrotor, linewidth = 5)
+
+
+        for i in range(1, len(np.arange(0, int(t_max/0.01), step_UAV))):
             r = R.from_euler('xyz', angles_drone[:, i]*180/np.pi, degrees = True)
             r = r.as_matrix()
 
-            p1.append(np.dot(r,[0, distance_wings, 0] )+ p_cg[:, i])
-            p2.append(np.dot(r,[0, -distance_wings,0])+ p_cg[:, i])
+            p1.append(np.dot(r,[distance_wings, 0, 0] )+ p_cg[:, i])
+            p2.append(np.dot(r,[-distance_wings, 0, 0])+ p_cg[:, i])
             p3.append(np.dot(r,[0, 0, distance_wings] )+ p_cg[:, i])
             p4.append(np.dot(r,[0, 0, -distance_wings])+ p_cg[:, i])
 
             ax.scatter(np.array(p_cg)[0,i], np.array(p_cg)[1,i], np.array(p_cg)[2,i], color = color_quadrotor)
-
-            # v = np.array(p1)[i,:] - p_cg[:, i]
-            # ax.plot([p_cg[0, i],  p_cg[0, i] + v[0]], [p_cg[1, i], p_cg[1, i] + v[1]], [p_cg[2, i], p_cg[2, i] + v[2]], color = color_quadrotor, linewidth = 5)
-            # ax.plot([p_cg[0, i],  p_cg[0, i] - v[0]], [p_cg[1, i], p_cg[1, i] - v[1]], [p_cg[2, i], p_cg[2, i] - v[2]], color = color_quadrotor, linewidth = 5)
-            # r = R.from_euler('x', 90, degrees = True)
-            # r = r.as_matrix()
-            # v = np.dot(r, v)
-            # ax.plot([p_cg[0, i],  p_cg[0, i] + v[0]], [p_cg[1, i], p_cg[1, i] + v[1]], [p_cg[2, i], p_cg[2, i] + v[2]], color = color_quadrotor, linewidth = 5)
-            # ax.plot([p_cg[0, i],  p_cg[0, i] - v[0]], [p_cg[1, i], p_cg[1, i] - v[1]], [p_cg[2, i], p_cg[2, i] - v[2]], color = color_quadrotor, linewidth = 5)
-
 
             ax.plot([p_cg[0, i],  np.array(p1)[i,0]], [p_cg[1, i], np.array(p1)[i,1]], [p_cg[2, i], np.array(p1)[i,2]], color = color_quadrotor, linewidth = 5)
             ax.plot([p_cg[0, i],  np.array(p2)[i,0]], [p_cg[1, i], np.array(p2)[i,1]], [p_cg[2, i], np.array(p2)[i,2]], color = color_quadrotor, linewidth = 5)
             ax.plot([p_cg[0, i],  np.array(p3)[i,0]], [p_cg[1, i], np.array(p3)[i,1]], [p_cg[2, i], np.array(p3)[i,2]], color = color_quadrotor, linewidth = 5)
             ax.plot([p_cg[0, i],  np.array(p4)[i,0]], [p_cg[1, i], np.array(p4)[i,1]], [p_cg[2, i], np.array(p4)[i,2]], color = color_quadrotor, linewidth = 5)
 
-        # t = np.arange(0, t_max, 0.01)
-
-        # x = np.array([0.4*t, 0.4*np.sin(np.pi*t), 0.6*np.cos(np.pi*t)])
-        # ax.plot3D(x[0, :], x[1, :], x[2, :], color_path)
-
-        # p_cg = x[:, np.arange(0, int(t_max/0.01), step_UAV)]
-
-        # p0 = np.array([np.cos(0.2*np.pi*t), np.sin(0.2*np.pi*t), np.zeros(np.max(np.shape(t),))]) + x
-        # r = R.from_euler('x', 90, degrees = True).as_matrix()
+        
+        ax.scatter(np.array(p_cg)[0,0], np.array(p_cg)[1,0], np.array(p_cg)[2,0], color = "red")
+        # plt.show()
 
 
-        # for i in range(1, int(t_max/(0.01*step_UAV))):
-        #     p1 = np.dot(r, p0[:, i])
-        #     # p1 = p0[:, i]
-        #     # r1 = R.from_euler('x', 90, degrees = True).as_matrix()
-        #     p2 = p0[:, i]
+    def helix_helicoidal_trajectory(self, a, b, c, f, t_max, step):
 
-        #     ax.plot([p_cg[0, i], p_cg[0, i] + np.array(p1)[0]], [p_cg[1, i], p_cg[1, i] + np.array(p1)[1]], [p_cg[2, i], p_cg[2, i] + np.array(p1)[2]], color = color_quadrotor, linewidth = 5)
-        #     ax.plot([p_cg[0, i], p_cg[0, i] + np.array(p2)[0]], [p_cg[1, i], p_cg[1, i] + np.array(p2)[1]], [p_cg[2, i], p_cg[2, i] + np.array(p2)[2]], color = color_quadrotor, linewidth = 5)
+        t = np.arange(0, t_max, step)
 
-        plt.show()
+        x_ = np.array([a*t, b*np.sin(f*np.pi*t), c*np.cos(f*np.pi*t)])
+        p0 = np.array([np.cos(2*f*np.pi*t), np.sin(2*f*np.pi*t), np.zeros(np.max(np.shape(t),))]) + x_
+        dx_ = np.array([a*np.ones(np.max(np.shape(t),)), b*np.pi*f*np.cos(f*np.pi*t), -c*np.pi*f*np.sin(f*np.pi*t)])
+        dp0 = np.array([2*np.pi*f*np.cos(2*f*np.pi*t), 2*f*np.pi*np.cos(2*f*np.pi*t), np.zeros(np.max(np.shape(t),))]) + dx_ 
+
+        angles_ = np.arccos(p0/np.sqrt(np.sum(p0**2, axis= 0)))
+
+        alpha = np.sum(dp0*p0, axis = 0)/np.sqrt(np.sum(p0**2, axis = 0))
+        beta = (dp0*np.sqrt(np.sum(p0**2, axis = 0)) - alpha*p0)/np.sum(p0**2, axis = 0)
+        dangles_ = -beta/np.sqrt(1- p0**2/np.sum(p0**2, axis = 0))
+
+        xd = np.row_stack((x_, angles_, dx_, dangles_))
+
+        return xd

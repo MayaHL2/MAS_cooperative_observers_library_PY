@@ -1,3 +1,4 @@
+from numpy import zeros
 from .parameters_function import *
 from .system import *
 from harold import staircase
@@ -23,7 +24,7 @@ class ObserverDesign:
 
     """
     step = 0.01 # The precision of time
-    def __init__(self, multi_agent_system, x0, gamma, k0, x_hat_0 = None, t_max = None, input = "step", std_noise_parameters = 0, std_noise_sensor = 0, std_noise_relative_sensor = 0):
+    def __init__(self, multi_agent_system, x0, gamma, k0, desired_states= None, x_hat_0 = None, t_max = None, input = "step", std_noise_parameters = 0, std_noise_sensor = 0, std_noise_relative_sensor = 0):
         """ 
         Arguments:
             multi_agent_system: a MultiAgentSystem object for which 
@@ -31,6 +32,8 @@ class ObserverDesign:
             x0: the initial value of the states.
             gamma: a parameter of the observer (its purpose changes
             depending on the type of observer chosen).
+            desired_states: the desired state contains all the xd 
+            for each agent.
             k0: the initial value of the parameter k_i.
             t_max: the duration of the response and observation.
             input: the type of the input (step, impulse or cos).
@@ -75,6 +78,17 @@ class ObserverDesign:
         self.x = np.zeros((self.multi_agent_system.size_plant, nbr_step))
         self.x[:, 0] = np.transpose(x0)
 
+        if np.all(desired_states == None):
+            self.xd = np.zeros((self.multi_agent_system.size_plant, nbr_step))
+            self.dxd = np.zeros((self.multi_agent_system.size_plant, nbr_step))
+            self.xd_concatenated = np.tile(self.xd, (self.multi_agent_system.nbr_agent, 1))
+        else:
+            self.xd = np.row_stack(desired_states)
+            temp = np.column_stack((np.zeros((self.xd.shape[0])), self.xd))
+            self.dxd = np.diff(temp)/self.step
+
+            self.xd_concatenated = np.tile(self.xd, (self.multi_agent_system.nbr_agent, 1))
+
         self.x_hat = np.zeros((self.multi_agent_system.nbr_agent, self.multi_agent_system.size_plant, nbr_step))
         if np.all(x_hat_0 == None):
             self.x_hat[:, : , 0] = np.random.uniform(-10, 10, (self.multi_agent_system.nbr_agent, self.multi_agent_system.size_plant))
@@ -85,13 +99,6 @@ class ObserverDesign:
         self.y_concatenated = np.zeros((np.shape(self.C_sys_concatenated)[0], nbr_step))
         self.y_hat = np.zeros((self.multi_agent_system.nbr_agent, np.shape(self.C_sys_concatenated)[0], nbr_step))
         self.y_hat_concatenated = np.zeros((np.shape(self.C_sys_concatenated)[0], nbr_step))
-
-
-        t = np.arange(0, t_max, self.step)
-
-        x_ = np.array([0.4*t, 0.4*np.sin(np.pi*t), 0.6*np.cos(np.pi*t)])
-        p0 = np.array([np.cos(0.2*np.pi*t), np.sin(0.2*np.pi*t), np.zeros(np.max(np.shape(t),))]) + x_
-        angles_ = np.arccos(p0/np.sqrt(np.sum(p0**2, axis= 0)))
 
         if input == "step":
             self.u_sys = np.ones((np.shape(self.multi_agent_system.B_plant)[1], nbr_step))
@@ -230,16 +237,15 @@ class ObserverDesign:
 
         for i in range(nbr_step-1):
 
-            self.x[:,i+1] = self.step*np.dot(self.multi_agent_system.A_plant, self.x[ :,i]) - self.step*np.dot(np.dot(self.multi_agent_system.B_plant, self.K_sys), np.mean(self.x_hat[:,:,i], axis =0)) + self.step*np.reshape(np.dot(self.multi_agent_system.B_plant, self.u_sys[:,i]), (-1,)) + self.x[:,i] 
+            self.x[:,i+1] = self.step*np.dot(self.multi_agent_system.A_plant, self.x[ :,i] - self.xd[ :,i]) - self.step*np.dot(np.dot(self.multi_agent_system.B_plant, self.K_sys), np.mean(self.x_hat[:,:,i], axis =0)  - self.xd[ :,i]) + self.step*np.reshape(np.dot(self.multi_agent_system.B_plant, self.u_sys[:,i]), (-1,)) + self.x[:,i] - self.xd[ :,i] + self.dxd[ :,i]*self.step
             x_concatenated = np.array([self.x[:, i] for _ in range(self.multi_agent_system.nbr_agent)])
             x_concatenated = np.reshape(x_concatenated, (np.shape(x_concatenated)[0]*np.shape(x_concatenated)[1], ))
             self.y_concatenated[:, i+1] = np.dot(self.C_sys_concatenated, x_concatenated)
 
             y_concatenated_noisy = self.add_sensors_noises(self.y_concatenated[:, i]) 
 
-            if i> 20:
-                if np.allclose(np.sum(self.y_hat_concatenated[:,i-20:i], axis = 1)/20 - np.max(self.y_hat_concatenated[:,i-20:i], axis = 1), 0, atol= tol_t_response) and first and i != 0:
-                # if np.allclose(self.y_concatenated[:, i-20:i] - self.y_hat_concatenated[:,i-20:i], 0, atol= tol_t_response) and first and i != 0:
+            if i> 50:
+                if np.allclose(np.sum(self.y_hat_concatenated[:,i-50:i], axis = 1)/50 - np.max(self.y_hat_concatenated[:,i-50:i], axis = 1), 0, atol= tol_t_response) and first:
                     print(i*self.step, "s")
                     self.t_response = i*self.step
                     if self.t_max == None:
@@ -252,22 +258,22 @@ class ObserverDesign:
                         return np.mean(self.x_hat, axis= 0)[:, -1], i*self.step
                     first = False
 
-            if type_observer == "output error":
+            if type_observer == "DLO":
                 diff_output = y_concatenated_noisy - self.y_hat_concatenated[:,i] 
-                consensus_tot =  self.gamma*np.dot(np.linalg.inv(self.M), np.dot(-Laplacien_m, x_hat_concatenated[:, i]))
+                consensus_tot =  self.gamma*np.dot(np.linalg.inv(self.M), np.dot(-Laplacien_m, x_hat_concatenated[:, i] - self.xd_concatenated[:, i]))
             
             elif type_observer == "sliding mode sign":
                 diff_output = np.sign(y_concatenated_noisy - self.y_hat_concatenated[:,i])
-                consensus_tot = self.gamma*np.dot(np.linalg.inv(self.M), np.dot(-Laplacien_m, x_hat_concatenated[:, i]))
+                consensus_tot = self.gamma*np.dot(np.linalg.inv(self.M), np.dot(-Laplacien_m, x_hat_concatenated[:, i] - self.xd_concatenated[:, i]))
             
             elif type_observer == "sliding mode tanh":
                 diff_output = np.tanh(10*(y_concatenated_noisy - self.y_hat_concatenated[:,i]))
-                consensus_tot = self.gamma*np.dot(np.linalg.inv(self.M), np.dot(-Laplacien_m, x_hat_concatenated[:, i]))
+                consensus_tot = self.gamma*np.dot(np.linalg.inv(self.M), np.dot(-Laplacien_m, x_hat_concatenated[:, i] - self.xd_concatenated[:, i]))
             
             elif type_observer == "super twisting":
                 diff_output = np.tanh(20*(y_concatenated_noisy - self.y_hat_concatenated[:,i]))*np.abs(y_concatenated_noisy - self.y_hat_concatenated[:,i])**(4) + 0*w
                 w += self.step*10*np.tanh(10*(y_concatenated_noisy - self.y_hat_concatenated[:,i]))
-                consensus_tot = self.gamma*np.dot(np.linalg.inv(self.M), np.dot(-Laplacien_m, x_hat_concatenated[:, i]))
+                consensus_tot = self.gamma*np.dot(np.linalg.inv(self.M), np.dot(-Laplacien_m, x_hat_concatenated[:, i] - self.xd_concatenated[:, i]))
             
             elif type_observer == "DFTO":
                 gamma_i = (1+self.gamma)/(1 + (self.multi_agent_system.size_plant - 1)*self.gamma)
@@ -283,9 +289,9 @@ class ObserverDesign:
                 consensus_tot = np.ndarray.flatten(np.array([consensus for _ in range(self.multi_agent_system.nbr_agent)]))
                 
             else: 
-                raise Exception("This type of observer doesn't exist, the existing types are: output error, DFTO, sliding mode sign and sliding mode tanh")
+                raise Exception("This type of observer doesn't exist, the existing types are: DLO, DFTO, sliding mode sign and sliding mode tanh")
 
-            x_hat_concatenated[:,i+1] = self.step*np.dot(self.A_sys_noisy_concatenated - np.dot(self.B_sys_concatenated, K_sys_concatenated), x_hat_concatenated[:,i]) + self.step*np.reshape(np.dot(self.B_sys_concatenated, u_concatenated[:,i]), (-1, )) + x_hat_concatenated[:,i]  + self.step*np.dot(self.L, diff_output) + self.step*consensus_tot
+            x_hat_concatenated[:,i+1] = self.step*np.dot(self.A_sys_noisy_concatenated - np.dot(self.B_sys_concatenated, K_sys_concatenated), x_hat_concatenated[:,i] - self.xd_concatenated[:, i]) + self.step*np.reshape(np.dot(self.B_sys_concatenated, u_concatenated[:,i]), (-1, )) + x_hat_concatenated[:,i] - self.xd_concatenated[:, i]  + self.step*np.dot(self.L, diff_output) + self.step*consensus_tot  + np.tile(self.dxd[ :,i], (self.multi_agent_system.nbr_agent))*self.step
 
             if (i>lost_connexion[1]/self.step and i<lost_connexion[2]/self.step):
                 for agent in lost_connexion[0]:
@@ -318,7 +324,7 @@ class ObserverDesign:
             self.L = [v for v in self.L_dict.values()]
             self.L = diag(self.L)
 
-
+        self.x_hat +=  self.xd
         print("k", self.k_adapt[:, i])
         
         return 0, 0
@@ -356,16 +362,17 @@ class ObserverDesign:
         """
         for j in range(self.x.shape[0]):
 
-
-            plt.plot(np.arange(0,self.t_max, self.step), np.transpose(self.x_hat[:, j,:]), color[j%len(color)])    
+            plt.plot(np.arange(0,self.t_max, self.step), np.transpose(self.x_hat[:,j ,:]), color[j%len(color)])    
             plt.plot(np.arange(0,self.t_max, self.step), np.transpose(self.x[j,:]), c ="#1E7DF0", ls = "dashed")
-
+            plt.xlabel("time")
+            plt.ylabel("x(t) and its estimates")
+            # plt.plot(np.arange(0,self.t_max, self.step), np.transpose(self.xd[j,:]), c= "#000000")
             # plt.title("Step response")
 
 
         plt.grid()
         if saveFile != None:
-            plt.savefig(saveFile  + "StateAndEstimate" + "param" + str(self.std_noise_parameters*100) + "sensor" + str(self.std_noise_sensor) + ".png", dpi=150)
+            plt.savefig(saveFile + "StateAndEstimate" + "param" + str(self.std_noise_parameters*100) + "sensor" + str(self.std_noise_sensor) + ".png", dpi=150)
             plt.close()
         else:
             plt.show()
@@ -403,6 +410,8 @@ class ObserverDesign:
         print("obsv error", self.obsv_error_2[:, nbr_step-1])
         plt.plot(np.arange(0,self.t_max, self.step), np.transpose(self.obsv_error_2[:, :nbr_step])) 
         plt.grid()
+        plt.xlabel("time")
+        plt.ylabel("Integral error squared")
         # plt.title("observation error")
         if saveFile != None:
             plt.savefig(saveFile  + "ObsvError2" + "param" + str(self.std_noise_parameters*100) + "sensor" + str(self.std_noise_sensor) + ".png", dpi=150)

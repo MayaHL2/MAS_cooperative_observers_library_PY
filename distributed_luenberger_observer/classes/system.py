@@ -91,11 +91,17 @@ class MultiAgentSystem:
         t = np.arange(0, t_max, self.step)
         x = np.transpose(x)
 
-        plt.plot(t, x)
+        plt.plot(t, x[:, 0])
+        plt.plot(t, x[:, 1])
         plt.plot(t, np.ones(np.shape(t)), "b--")
+        plt.legend(["x1(t)", "x2(t)", "step"], loc ="lower right")
         plt.title("step response")
+        plt.xlabel("time")
+        plt.ylabel("x(t)")
         plt.grid()
         plt.show()
+         
+        
 
         return t, x
 
@@ -388,6 +394,7 @@ class MultiAgentGroups(MultiAgentSystem):
                     # P = np.zeros(A.shape)
                     # P[obsv_ind:, :] = T[obsv_ind:, :]
                     T = T.T
+                    # print("transformation matrix", T)
                     added_obs_states = added_obs_states + T[obsv_ind:, :]
                     
                     obsv_ind = np.linalg.matrix_rank(obsv(A, np.row_stack((C, added_obs_states))))
