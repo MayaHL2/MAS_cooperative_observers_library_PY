@@ -120,7 +120,7 @@ class Quadrotor:
     def draw_quadrotor(self, ax, p, angles, t_max, step_UAV, distance_wings, color_path = "green", color_quadrotor = "#000000"):        
         # syntax for 3-D projection
         # ax = plt.axes(projection ='3d')
-        ax.set(xlim=(-np.max(-p[0:3, :]), np.max(p[0:3, :])), ylim=(-np.max(-p[0:3, :]), np.max(p[0:3, :])), zlim=(-np.max(-p[0:3, :]), np.max(p[0:3, :])))
+        # ax.set(xlim=(-np.max(-p[0:3, :]), np.max(p[0:3, :])), ylim=(-np.max(-p[0:3, :]), np.max(p[0:3, :])), zlim=(-np.max(-p[0:3, :]), np.max(p[0:3, :])))
            
         # plotting
         ax.plot3D(p[0, :], p[1, :], p[2,:], color_path)

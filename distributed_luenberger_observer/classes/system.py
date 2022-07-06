@@ -247,6 +247,7 @@ class MultiAgentSystem:
         else:
             self.A_plant_noisy = np.array(self.A_plant)
             self.A_plant_noisy += np.random.normal(0, std_noise*np.abs(np.mean(self.A_plant[self.A_plant!=0])), np.shape(self.A_plant))
+            # self.A_plant_noisy += std_noise*np.abs(np.mean(self.A_plant[self.A_plant!=0]))
             self.A_plant_noisy[np.where(self.A_plant == 0)] = 0
         
         return self.A_plant_noisy

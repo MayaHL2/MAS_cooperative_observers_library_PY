@@ -1,4 +1,3 @@
-from numpy import zeros
 from .parameters_function import *
 from .system import *
 from harold import staircase
@@ -36,7 +35,7 @@ class ObserverDesign:
             for each agent.
             k0: the initial value of the parameter k_i.
             t_max: the duration of the response and observation.
-            input: the type of the input (step, impulse or cos).
+            input: the type of the input (step, random, cos, zero).
             std_noise_parameters: the standard deviation of the 
             noise added to the parameters of the plant.
             std_noise_sensors: the standard deviation of the noise
@@ -233,7 +232,7 @@ class ObserverDesign:
 
         w = 0 # initialisation for super twiting
 
-        self.obsv_error_2 = np.zeros(np.shape(self.y_concatenated))
+        self.obsv_error_2 = np.zeros(np.shape(self.x))
 
         for i in range(nbr_step-1):
 
@@ -244,8 +243,9 @@ class ObserverDesign:
 
             y_concatenated_noisy = self.add_sensors_noises(self.y_concatenated[:, i]) 
 
-            if i> 50:
-                if np.allclose(np.sum(self.y_hat_concatenated[:,i-50:i], axis = 1)/50 - np.max(self.y_hat_concatenated[:,i-50:i], axis = 1), 0, atol= tol_t_response) and first:
+            if i> 20:
+                # if np.allclose(np.sum(self.x[:, i-20:i], axis = 1)/20 - np.max(np.mean(self.x_hat[:, :, i-20:i], axis = 0), axis = 1), 0, atol= tol_t_response) and first:
+                if np.allclose(np.sum(self.y_hat_concatenated[:,i-20:i], axis = 1)/20 - np.max(self.y_hat_concatenated[:,i-20:i], axis = 1), 0, atol= tol_t_response) and first:
                     print(i*self.step, "s")
                     self.t_response = i*self.step
                     if self.t_max == None:
@@ -309,11 +309,10 @@ class ObserverDesign:
             self.x_hat[:,:, i+1] = np.reshape(x_hat_concatenated[:,i+1], (self.multi_agent_system.nbr_agent, np.shape(self.multi_agent_system.A_plant)[0],))
             self.y_hat_concatenated[:,i+1] = np.dot(self.C_sys_concatenated, x_hat_concatenated[:,i])
 
-
-            self.obsv_error_2[:, i+1] = self.obsv_error_2[:, i] + self.step*(self.y_concatenated[:, i] - self.y_hat_concatenated[:, i])**2
-
+            self.obsv_error_2[:, i+1] = self.obsv_error_2[:, i] + self.step*(self.x[:, i] - np.mean(self.x_hat[:, :, i], axis = 0))**2
+            
             for ind in range(self.multi_agent_system.nbr_agent):
-                self.k_adapt[ind,i+1] = self.k_adapt[ind,i] + self.step*np.linalg.norm(np.dot(self.multi_agent_system.graph.Lap[ind],(self.x_hat[:,:, i+1] - self.x_hat[ind,:, i+1])**2), 2)
+                self.k_adapt[ind,i+1] = self.k_adapt[ind,i] + self.step*np.linalg.norm(np.dot(self.multi_agent_system.graph.Lap[ind],np.abs(self.x_hat[:,:, i+1] - self.x_hat[ind,:, i+1])**2), 2) 
                 size_obsv = np.linalg.matrix_rank(obsv(self.multi_agent_system.A_plant, self.multi_agent_system.tuple_output_matrix[ind]))
                 self.M_dict[str(ind)] = Mi(self.T[str(ind)], self.k_adapt[ind, i+1], self.Md[str(ind)], np.shape(self.multi_agent_system.A_plant)[0] - size_obsv)
                 self.L_dict[str(ind)] = Li(self.T[str(ind)], self.Ld[str(ind)].T,  np.shape(self.multi_agent_system.A_plant)[0] - size_obsv)
@@ -407,7 +406,6 @@ class ObserverDesign:
 
         nbr_step = int(self.t_max/self.step) if self.t_max != None else 10000
 
-        print("obsv error", self.obsv_error_2[:, nbr_step-1])
         plt.plot(np.arange(0,self.t_max, self.step), np.transpose(self.obsv_error_2[:, :nbr_step])) 
         plt.grid()
         plt.xlabel("time")

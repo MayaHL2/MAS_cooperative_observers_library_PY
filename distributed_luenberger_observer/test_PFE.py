@@ -28,65 +28,40 @@ MA = MultiAgentSystem(A_sys, B_sys, C_sys, G)
 print("It is jointly observable:", MA.is_jointly_obsv())
 print("obsv index", MA.obsv_index())
 
-# MA.step_response(t_max = 7, x0= [-1, 0, 1, 2])
 
-t_response = list([])
-static_error = list([])
+type = ["DLO", "DFTO"]
 
-for k in range(1):
+for j in range(2):
+    print(type[j])
+    t_response = list([])
+    static_error = list([])
+    for k in range(100):
+        print(k)
+        if j == 0:
+            g = 6
+        else:
+            g = -0.02
+        observer = ObserverDesign(multi_agent_system= MA, 
+                                    t_max= None, 
+                                    x0= np.ones(A_sys.shape[0]),
+                                    x_hat_0= [[-1, 2], [0.5, -1.3]],
+                                    gamma= g, 
+                                    k0= np.ones(nbr_agent),
+                                    std_noise_parameters= k/100,
+                                    std_noise_sensor= 0,
+                                    std_noise_relative_sensor = 0)
 
-    observer = ObserverDesign(multi_agent_system= MA, 
-                                t_max= 3, 
-                                x0= np.ones(A_sys.shape[0]),
-                                x_hat_0= [[-1, 2], [0.5, -1.3]],
-                                gamma= 6, 
-                                k0= np.ones(nbr_agent),
-                                std_noise_parameters= 0,
-                                std_noise_sensor= 0,
-                                std_noise_relative_sensor = 0)
+        observer.run_observer(type_observer = type[j])
 
-    # observer.feedback_control_with_observer([-1, -2])
-    # observer.run_observer(type_observer = "DLO", lost_connexion= [[0], 2, 4], tol_t_response= 10**(-2))
-    observer.run_observer(type_observer = "DFTO")
-    # observer.run_observer(type_observer = "DFTO")
-    # if observer.t_max == None:
-    #     break
-    # t_response = t_response + [observer.t_max]
-    # static_error = static_error + [observer.static_error]
+        if observer.t_max == None:
+            break
+        t_response = t_response + [observer.t_max]
+        # static_error = static_error + [observer.static_error]
 
-observer.plot_states(saveFile = "image/plant/stable/DFTO/")
-observer.plot_criateria(saveFile = "image/plant/stable/DFTO/")
-observer.plot_k(saveFile = "image/plant/stable/DFTO/")
-observer.plot_obsv_error(saveFile = "image/plant/stable/DFTO/")
+    print(t_response)
+    plt.plot(np.arange(0,np.size(t_response)), t_response)    
+    plt.xlabel("added parametric noise/parameters' values")
+    plt.ylabel("settling time")
 
-# observer.plot_states(saveFile = "image/plant/stable/DLO/")
-# observer.plot_criateria(saveFile = "image/plant/stable/DLO/")
-# observer.plot_k(saveFile = "image/plant/stable/DLO/")
-# observer.plot_obsv_error(saveFile = "image/plant/stable/DLO/")
-
-observer.plot_states()
-observer.plot_criateria()
-observer.plot_k()
-observer.plot_obsv_error()
-
-# print(time.time()- start)
-
-# print(t_response)
-# print(static_error)
-
-# plt.plot(np.arange(0,np.size(t_response)), t_response)    
-# # plt.legend([""], loc ="lower right")
-# plt.xlabel("added parametric noise/parameters' values")
-# plt.ylabel("settling time")
-# # plt.title("The response time to a step versus parametric noise")
-# plt.grid()
-# plt.show()
-
-
-# plt.plot(np.arange(0,np.shape(static_error)[0]), static_error)    
-
-# # plt.title("Static error versus parametric noise")
-# plt.xlabel("added parametric noise/parameters' values")
-# plt.ylabel("steady-state error")
-# plt.grid()
-# plt.show()
+plt.grid()
+plt.show()
