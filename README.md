@@ -1,4 +1,4 @@
-# Multi Agent Systems observation
+# Python library : Multi-agent systems/ Cooperative observers
 
 The distributed_luenberger_observer file contains classes and functions for:
 
@@ -18,3 +18,6 @@ In 2016 IEEE 55th Conference on Decision and Control (CDC), pages 6928–6933. I
 A note on distributed finite-time observers. IEEE Transactions on Automatic Control,
 64(2):759–766, 2018.
 20
+
+This work was done in the framework of my master thesis. 
+For more details read the PDF included in this repo.
