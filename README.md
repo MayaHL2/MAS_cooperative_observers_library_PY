@@ -1,12 +1,12 @@
 # Python library : Multi-agent systems/ Cooperative observers
 
-The distributed_luenberger_observer file contains classes and functions for:
+This repo contains classes and functions for:
 
 <dl>
 <dd>Defining the graph of a multi-agent system and applying changes to it.</dd>
 <dd>Defining and simulating a multi-agent system.</dd>
 <dd>Estimating the states of a multi-agent system using the Distributed Luenberger Observer [1] and the Distributed Finite-Time Observer [2].</dd>
-<dd>Define the State Space of a quadrotor (linearized).</dd>
+<dd>Defining the State Space of a quadrotor (linearized).</dd>
 </dl>
 
 
